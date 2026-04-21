@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rust Complete Reference</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-badge">Rs</div>
+      <div>
+        <h1>Rust Complete Reference</h1>
+        <div class="version">v1.78+ · expanded</div>
+      </div>
+    </div>
+
+    <div class="nav-group-label">Language</div>
+    <button class="nav-btn" data-tab="ownership">Ownership</button>
+    <button class="nav-btn" data-tab="borrowing">Borrowing</button>
+    <button class="nav-btn" data-tab="lifetimes">Lifetimes</button>
+    <button class="nav-btn" data-tab="types">Types &amp; Vars</button>
+    <button class="nav-btn" data-tab="strings">Strings</button>
+    <button class="nav-btn" data-tab="functions">Functions</button>
+    <button class="nav-btn" data-tab="structs">Structs &amp; Enums</button>
+    <button class="nav-btn" data-tab="traits">Traits</button>
+    <button class="nav-btn" data-tab="errors">Errors</button>
+    <button class="nav-btn" data-tab="collections">Collections</button>
+    <button class="nav-btn" data-tab="iterators">Iterators</button>
+    <button class="nav-btn" data-tab="async">Async</button>
+    <button class="nav-btn" data-tab="generics">Generics</button>
+    <button class="nav-btn" data-tab="smartptr">Smart Pointers</button>
+    <button class="nav-btn" data-tab="macros">Macros</button>
+
+    <div class="nav-group-label">Ecosystem</div>
+    <button class="nav-btn" data-tab="project">Project Structure</button>
+    <button class="nav-btn" data-tab="cargo">Cargo Commands</button>
+    <button class="nav-btn" data-tab="toolchain">Toolchain</button>
+    <button class="nav-btn" data-tab="crates">Essential Crates</button>
+    <button class="nav-btn" data-tab="patterns">Idioms &amp; Patterns</button>
+
+    <div class="sidebar-footer">Press <code>⌘K</code> to search</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <button class="mobile-nav-toggle" id="mobile-nav-toggle">☰ Menu</button>
+      <span class="page-title">Ownership</span>
+      <div class="search-wrap">
+        <input type="text" id="search-input" placeholder="Search… (⌘K)">
+      </div>
+    </div>
+
+<!-- ═══ OWNERSHIP ═══ -->
+<div class="panel" id="p-ownership">
+<div class="intro">
+  <div class="intro-title">Ownership — Rust's core memory model</div>
+  <div class="intro-text">Every value has a single owner. When the owner's scope ends, the value is freed — <strong>no GC, no manual free()</strong>. Stack values (ints, floats, bool, char, fixed arrays) are <strong>copied</strong> on assignment. Heap values (String, Vec, Box…) are <strong>moved</strong> — the original binding becomes invalid. Clone for an explicit deep copy.</div>
+  <span class="tag tag-r">zero-cost memory mgmt</span><span class="tag tag-b">no GC</span><span class="tag tag-g">no dangling pointers</span>
+</div>
+<div class="two">
+<div class="card"><div class="card-head">Move (heap types)</div><pre><span class="kw">let</span> s1 = <span class="ty">String</span>::from(<span class="st">"hi"</span>);
+<span class="kw">let</span> s2 = s1;  <span class="cm">// s1 MOVED — now invalid</span>
+<span class="cm">// println!("{s1}"); ← compile error</span></pre></div>
+<div class="card"><div class="card-head">Copy (stack types)</div><pre><span class="kw">let</span> x: <span class="ty">i32</span> = 5;
+<span class="kw">let</span> y = x;  <span class="cm">// copied — x still valid</span>
+<span class="cm">// i32, f64, bool, char, &T → Copy</span></pre></div>
+</div>
+<div class="card"><div class="card-head">Ownership cheatsheet</div>
+<table class="ct"><tr><th>Pattern</th><th>Effect</th><th>After</th></tr>
+<tr><td>let b = a</td><td class="mu">Move (heap) or Copy (stack)</td><td class="mu">a invalid (heap) / valid (stack)</td></tr>
+<tr><td>let b = a.clone()</td><td class="mu">Deep copy, new allocation</td><td class="ok-c">a still valid</td></tr>
+<tr><td>fn f(s: String)</td><td class="mu">Takes ownership</td><td class="er-c">caller loses s</td></tr>
+<tr><td>fn f(s: &String)</td><td class="mu">Borrows, no transfer</td><td class="ok-c">caller keeps s</td></tr>
+<tr><td>drop(a)</td><td class="mu">Explicit free</td><td class="er-c">a invalid immediately</td></tr>
+<tr><td>Rc::clone(&a)</td><td class="mu">Ref count increment</td><td class="ok-c">both handles valid</td></tr>
+</table></div>
+<div class="edge"><div class="edge-head">⚠ Edge cases</div><ul class="elist">
+<li><span class="sym">▸</span><span><strong>Partial moves:</strong> moving out of a struct field makes the whole struct unusable. Prefer #[derive(Clone)] or use Option to take fields.</span></li>
+<li><span class="sym">▸</span><span><strong>Tuple of non-Copy:</strong> (String, i32) is moved, not copied — because one field is not Copy.</span></li>
+<li><span class="sym">▸</span><span><strong>Rc/Arc for shared ownership:</strong> multiple owners are possible with reference counting — mutation needs RefCell (Rc) or Mutex (Arc).</span></li>
+</ul></div>
+</div>
+
+<!-- ═══ BORROWING ═══ -->
+<div class="panel" id="p-borrowing">
+<div class="intro">
+  <div class="intro-title">Borrowing — use without owning</div>
+  <div class="intro-text">References let you access a value without owning it. The rules: <strong>many simultaneous &T</strong> (read-only), OR <strong>exactly one &mut T</strong> (exclusive). Never both. This eliminates data races at compile time via the borrow checker. NLL (Non-Lexical Lifetimes) means borrows end at their last use, not end of block.</div>
+  <span class="tag tag-r">pass-by-reference</span><span class="tag tag-b">zero-copy reads</span><span class="tag tag-g">data race prevention</span>
+</div>
+<div class="two">
+<div class="card"><div class="card-head">Immutable &T <span class="badge b-g">many OK</span></div><pre><span class="kw">let</span> s = <span class="ty">String</span>::from(<span class="st">"hi"</span>);
+<span class="kw">let</span> r1 = &s; <span class="kw">let</span> r2 = &s; <span class="cm">// fine</span>
+<span class="mac">println!</span>(<span class="st">"{r1} {r2}"</span>);</pre></div>
+<div class="card"><div class="card-head">Mutable &mut T <span class="badge b-r">exclusive</span></div><pre><span class="kw">let mut</span> s = <span class="ty">String</span>::from(<span class="st">"hi"</span>);
+<span class="kw">let</span> r = &<span class="kw">mut</span> s;
+r.push_str(<span class="st">" world"</span>);
+<span class="cm">// no other ref while r lives</span></pre></div>
+</div>
+<div class="card"><div class="card-head">Reference cheatsheet</div>
+<table class="ct"><tr><th>Syntax</th><th>Meaning</th><th>Use when</th></tr>
+<tr><td>&T</td><td class="mu">Shared ref</td><td class="mu">Read-only, many callers</td></tr>
+<tr><td>&mut T</td><td class="mu">Exclusive ref</td><td class="mu">Need to modify</td></tr>
+<tr><td>&[T]</td><td class="mu">Slice</td><td class="mu">View into array/vec</td></tr>
+<tr><td>&str</td><td class="mu">String slice</td><td class="mu">Read-only string param</td></tr>
+<tr><td>fn f(x: &T)</td><td class="mu">Borrow param</td><td class="mu">Caller keeps ownership</td></tr>
+<tr><td>fn f(x: &mut T)</td><td class="mu">Mut borrow param</td><td class="mu">Modify caller's value</td></tr>
+</table></div>
+<div class="edge"><div class="edge-head">⚠ Edge cases</div><ul class="elist">
+<li><span class="sym">▸</span><span><strong>Iterator invalidation:</strong> holding &v[0] while calling v.push() — Rust rejects it. The push might reallocate, making the reference dangling.</span></li>
+<li><span class="sym">▸</span><span><strong>Interior mutability:</strong> Cell&lt;T&gt; and RefCell&lt;T&gt; allow mutation through &T by moving borrow checks to runtime. Panics on violation.</span></li>
+<li><span class="sym">▸</span><span><strong>Self-referential structs:</strong> very hard — moving the struct invalidates the internal reference. Use Pin&lt;T&gt; or arena allocators.</span></li>
+</ul></div>
+</div>
+
+<!-- ═══ LIFETIMES ═══ -->
+<div class="panel" id="p-lifetimes">
+<div class="intro">
+  <div class="intro-title">Lifetimes — how long are references valid?</div>
+  <div class="intro-text">Every reference has a lifetime — the scope during which it is valid. Usually inferred; you annotate explicitly when a function returns a reference and the compiler can't determine which input it comes from. Lifetimes don't change how long data lives — they describe relationships between scopes. Think of <strong>'a</strong> as a label, not a duration.</div>
+  <span class="tag tag-r">returning borrowed data</span><span class="tag tag-b">struct holding refs</span><span class="tag tag-a">no dangling pointers</span>
+</div>
+<div class="card"><div class="card-head">Lifetime annotation</div><pre><span class="kw">fn</span> longest<span class="lf">&lt;'a&gt;</span>(x: &<span class="lf">'a</span> <span class="ty">str</span>, y: &<span class="lf">'a</span> <span class="ty">str</span>) -> &<span class="lf">'a</span> <span class="ty">str</span> {
+    <span class="kw">if</span> x.len() > y.len() { x } <span class="kw">else</span> { y }
+}
+<span class="cm">// 'a = shorter of x's and y's lifetimes</span></pre></div>
+<div class="two">
+<div class="card"><div class="card-head">Struct with ref</div><pre><span class="kw">struct</span> <span class="ty">View</span><span class="lf">&lt;'a&gt;</span> {
+    data: &<span class="lf">'a</span> <span class="ty">str</span>,
+}
+<span class="cm">// View can't outlive its data</span></pre></div>
+<div class="card"><div class="card-head">'static</div><pre><span class="kw">let</span> s: &<span class="lf">'static</span> <span class="ty">str</span> = <span class="st">"I live forever"</span>;
+<span class="cm">// All string literals are 'static
+// Don't use as an easy fix — prefer owned</span></pre></div>
+</div>
+<div class="edge"><div class="edge-head">⚠ Edge cases</div><ul class="elist">
+<li><span class="sym">▸</span><span><strong>'a: 'b means outlives:</strong> 'a lives at least as long as 'b. Longer lifetime is "bigger".</span></li>
+<li><span class="sym">▸</span><span><strong>HRTB — for&lt;'a&gt;:</strong> <code>F: for&lt;'a&gt; Fn(&'a T)</code> — closure works for any lifetime, not a specific one.</span></li>
+<li><span class="sym">▸</span><span><strong>Don't fight with 'static:</strong> sprinkling 'static everywhere usually means you need Arc or owned types instead.</span></li>
+</ul></div>
+</div>
+
+<!-- ═══ TYPES ═══ -->
+<div class="panel" id="p-types">
+<div class="intro">
+  <div class="intro-title">Types & Variables — static, inferred, immutable-first</div>
+  <div class="intro-text">Rust is statically typed with powerful inference — you rarely write types explicitly. Variables are <strong>immutable by default</strong>; opt into mutation with <code>mut</code>. <strong>Shadowing</strong> re-declares a binding (can change type). <code>const</code> is inlined at every use. <code>static</code> has a fixed address. Numeric casts with <code>as</code> truncate silently — prefer <code>TryFrom</code> for safe conversions.</div>
+  <span class="tag tag-r">immutable by default</span><span class="tag tag-b">type inference</span><span class="tag tag-g">zero-cost</span>
+</div>
+<div class="two">
+<div class="card"><div class="card-head">Numeric types</div><table class="ct">
+<tr><th>Type</th><th>Size</th><th>Use for</th></tr>
+<tr><td>i8/i16/i32/i64/i128</td><td class="mu">1-16B</td><td class="mu">Signed integers</td></tr>
+<tr><td>u8/u16/u32/u64/u128</td><td class="mu">1-16B</td><td class="mu">Unsigned — bytes, IDs</td></tr>
+<tr><td>isize / usize</td><td class="mu">arch</td><td class="mu">Signed/unsigned pointer-sized</td></tr>
+<tr><td>f32 / f64</td><td class="mu">4/8B</td><td class="mu">f64 default float</td></tr>
+<tr><td>bool</td><td class="mu">1B</td><td class="mu">true / false</td></tr>
+<tr><td>char</td><td class="mu">4B</td><td class="mu">Unicode scalar value</td></tr>
+</table></div>
+<div class="card"><div class="card-head">Declarations</div><pre><span class="kw">let</span> x = <span class="num">5</span>;             <span class="cm">// immutable i32</span>
+<span class="kw">let</span> y: <span class="ty">f64</span> = <span class="num">3.14</span>;    <span class="cm">// explicit type</span>
+<span class="kw">let mut</span> z = <span class="num">0</span>;         <span class="cm">// mutable</span>
+<span class="kw">const</span> MAX: <span class="ty">u32</span> = <span class="num">100</span>; <span class="cm">// inlined everywhere</span>
+<span class="kw">static</span> ID: <span class="ty">u32</span> = <span class="num">1</span>;    <span class="cm">// fixed address</span>
+<span class="kw">let</span> x = x + <span class="num">1</span>;         <span class="cm">// shadowing (new binding)</span>
+<span class="kw">let</span> x = x.to_string(); <span class="cm">// can change type!</span></pre></div>
+</div>
+<div class="card"><div class="card-head">Conversions</div><pre><span class="kw">let</span> x: <span class="ty">i32</span> = <span class="num">300</span>;
+<span class="kw">let</span> y = x <span class="kw">as</span> <span class="ty">u8</span>;              <span class="cm">// 44 — truncates! 300 % 256</span>
+<span class="kw">let</span> n = <span class="ty">i64</span>::from(<span class="num">42i32</span>);     <span class="cm">// infallible widening</span>
+<span class="kw">let</span> s = <span class="ty">i8</span>::try_from(<span class="num">500i64</span>); <span class="cm">// Err — doesn't fit</span>
+<span class="kw">let</span> n: <span class="ty">i32</span> = <span class="st">"42"</span>.parse().unwrap(); <span class="cm">// str → int</span></pre></div>
+<div class="edge"><div class="edge-head">⚠ Edge cases</div><ul class="elist">
+<li><span class="sym">▸</span><span><strong>Integer overflow:</strong> debug panics. Release wraps silently. Use .checked_add(), .saturating_add(), .wrapping_add() for explicit control.</span></li>
+<li><span class="sym">▸</span><span><strong>usize for indices:</strong> array/Vec indices must be usize. Negative indexing doesn't exist — use .get() for safe Option access.</span></li>
+</ul></div>
+</div>
+
+<!-- ═══ STRINGS ═══ -->
+<div class="panel" id="p-strings">
+<div class="intro">
+  <div class="intro-title">Strings — &str vs String</div>
+  <div class="intro-text"><strong>&str</strong> is a borrowed view into UTF-8 data — lightweight, no allocation, always read-only. <strong>String</strong> is owned, heap-allocated, growable. Rule of thumb: <strong>use &str for function parameters</strong> (accepts both literals and String refs). <strong>Use String when you need to own, store, or build string data.</strong> Both are always valid UTF-8 — invalid strings are not possible in safe Rust.</div>
+  <span class="tag tag-r">UTF-8 only</span><span class="tag tag-b">&str for params</span><span class="tag tag-g">String for building</span>
+</div>
+<div class="compare">
+  <div class="cmp-col"><div class="cmp-title" style="color:#185FA5">&str — borrowed slice</div><ul class="cmp-list">
+    <li class="dot-g">Zero allocation, lightweight</li><li class="dot-g">Works for literals and String slices</li>
+    <li class="dot-g">Best choice for function parameters</li><li class="dot-r">Cannot be grown or modified</li>
+    <li class="dot-r">Tied to its source's lifetime</li>
+  </ul><pre style="margin-top:10px"><span class="kw">fn</span> greet(name: &<span class="ty">str</span>) { }
+greet(<span class="st">"Alice"</span>);           <span class="cm">// literal — works</span>
+greet(&owned_string);     <span class="cm">// String ref — works</span></pre></div>
+  <div class="cmp-col"><div class="cmp-title" style="color:#CE412B">String — owned</div><ul class="cmp-list">
+    <li class="dot-g">Owned, growable, heap-allocated</li><li class="dot-g">Necessary when returning or storing strings</li>
+    <li class="dot-g">Can be mutated with mut</li><li class="dot-r">Heap allocation cost</li>
+    <li class="dot-r">Overkill for read-only parameters</li>
+  </ul><pre style="margin-top:10px"><span class="kw">let mut</span> s = <span class="ty">String</span>::new();
+s.push_str(<span class="st">"hello"</span>);
+<span class="kw">let</span> msg = <span class="mac">format!</span>(<span class="st">"Hi, {s}!"</span>);
+<span class="cm">// use format! over + chains</span></pre></div>
+</div>
+<div class="card" style="margin-top:12px"><div class="card-head">String methods reference</div>
+<table class="ct"><tr><th>Method</th><th>Returns</th><th>Notes</th></tr>
+<tr><td>s.len()</td><td class="mu">usize</td><td class="mu">Byte length — NOT char count!</td></tr>
+<tr><td>s.chars().count()</td><td class="mu">usize</td><td class="mu">Correct Unicode char count</td></tr>
+<tr><td>s.is_empty()</td><td class="mu">bool</td><td class="mu"></td></tr>
+<tr><td>s.contains("x")</td><td class="mu">bool</td><td class="mu">Substring check</td></tr>
+<tr><td>s.starts_with("x")</td><td class="mu">bool</td><td class="mu">Prefix check</td></tr>
+<tr><td>s.ends_with("x")</td><td class="mu">bool</td><td class="mu">Suffix check</td></tr>
+<tr><td>s.trim()</td><td class="mu">&str</td><td class="mu">Strip leading/trailing whitespace</td></tr>
+<tr><td>s.to_uppercase()</td><td class="mu">String</td><td class="mu">New String, original unchanged</td></tr>
+<tr><td>s.replace("a","b")</td><td class="mu">String</td><td class="mu">Replace all occurrences</td></tr>
+<tr><td>s.split("delim")</td><td class="mu">Iterator</td><td class="mu">Split into parts</td></tr>
+<tr><td>s.split_whitespace()</td><td class="mu">Iterator</td><td class="mu">Split on any whitespace</td></tr>
+<tr><td>s.lines()</td><td class="mu">Iterator</td><td class="mu">Split by newlines</td></tr>
+<tr><td>s.chars()</td><td class="mu">Iterator&lt;char&gt;</td><td class="mu">Unicode chars — not bytes</td></tr>
+<tr><td>s.parse::&lt;T&gt;()</td><td class="mu">Result&lt;T&gt;</td><td class="mu">Parse into any FromStr type</td></tr>
+<tr><td>s.push_str("x")</td><td class="mu">() mutates</td><td class="mu">Append &str in-place</td></tr>
+<tr><td>s.push('c')</td><td class="mu">() mutates</td><td class="mu">Append single char</td></tr>
+<tr><td>format!("{a}{b}")</td><td class="mu">String</td><td class="mu">Concat without moving</td></tr>
+<tr><td>s.find("pat")</td><td class="mu">Option&lt;usize&gt;</td><td class="mu">First byte index</td></tr>
+<tr><td>s.repeat(n)</td><td class="mu">String</td><td class="mu">Repeat n times</td></tr>
+<tr><td>s.as_bytes()</td><td class="mu">&[u8]</td><td class="mu">View as byte slice</td></tr>
+</table></div>
+<div class="edge"><div class="edge-head">⚠ Edge cases</div><ul class="elist">
+<li><span class="sym">▸</span><span><strong>s.len() is bytes:</strong> "café".len() == 5, "café".chars().count() == 4. The é is 2 bytes.</span></li>
+<li><span class="sym">▸</span><span><strong>No integer indexing:</strong> s[0] doesn't compile. Use s.chars().nth(n) for char access or &s[byte_range] carefully.</span></li>
+<li><span class="sym">▸</span><span><strong>s1 + &s2 moves s1:</strong> use format!() when you need all originals intact.</span></li>
+<li><span class="sym">▸</span><span><strong>Paths:</strong> use PathBuf (owned) and &Path (borrowed) for file paths — not valid UTF-8 on all OSes.</span></li>
+</ul></div>
+</div>
+
+<!-- ═══ FUNCTIONS ═══ -->
+<div class="panel" id="p-functions">
+<div class="intro">
+  <div class="intro-title">Functions & Closures — first-class behavior</div>
+  <div class="intro-text">Last expression without semicolon is the return value. Closures capture their environment and are used heavily in iterators, async, and callbacks. The compiler infers closure types. <code>move</code> closures take ownership of captured values — required for threads and async tasks.</div>
+  <span class="tag tag-r">zero-cost abstraction</span><span class="tag tag-b">closures in iterators</span><span class="tag tag-g">callbacks</span>
+</div>
+<div class="card"><div class="card-head">Syntax</div><pre><span class="kw">fn</span> add(x: <span class="ty">i32</span>, y: <span class="ty">i32</span>) -> <span class="ty">i32</span> { x + y }   <span class="cm">// implicit return</span>
+<span class="kw">fn</span> nothing() { }                             <span class="cm">// returns () unit</span>
+<span class="kw">fn</span> diverges() -> ! { <span class="kw">panic!</span>() }            <span class="cm">// never returns</span>
+
+<span class="kw">let</span> add = |x, y| x + y;                     <span class="cm">// closure, inferred types</span>
+<span class="kw">let</span> bump = |x| x + offset;                   <span class="cm">// captures offset</span>
+<span class="kw">let</span> f = <span class="kw">move</span> || <span class="mac">println!</span>(<span class="st">"{name}"</span>);         <span class="cm">// move closure</span></pre></div>
+<div class="card"><div class="card-head">Fn / FnMut / FnOnce</div>
+<table class="ct"><tr><th>Trait</th><th>Captures as</th><th>Calls</th><th>Use when</th></tr>
+<tr><td>Fn</td><td class="mu">&self (borrow)</td><td class="mu">Any number</td><td class="mu">Read-only captures, most common</td></tr>
+<tr><td>FnMut</td><td class="mu">&mut self</td><td class="mu">Any number</td><td class="mu">Closure mutates captured state</td></tr>
+<tr><td>FnOnce</td><td class="mu">self (move)</td><td class="mu">Once only</td><td class="mu">Closure consumes captured value</td></tr>
+</table></div>
+<div class="edge"><div class="edge-head">⚠ Edge cases</div><ul class="elist">
+<li><span class="sym">▸</span><span><strong>Returning closures:</strong> use impl Fn() for static dispatch (one type) or Box&lt;dyn Fn()&gt; for dynamic dispatch (any closure).</span></li>
+<li><span class="sym">▸</span><span><strong>FnMut needs mut to call:</strong> let mut f = || counter += 1; — f itself must be mut to call it.</span></li>
+<li><span class="sym">▸</span><span><strong>fn pointers:</strong> plain fn(i32) -> i32 implement all Fn traits and are useful for C interop or when you need a non-capturing callable.</span></li>
+</ul></div>
+</div>
+
+<!-- ═══ STRUCTS & ENUMS ═══ -->
+<div class="panel" id="p-structs">
+<div class="intro">
+  <div class="intro-title">Structs & Enums — algebraic data types</div>
+  <div class="intro-text">Structs bundle named fields. Enums define a type that can be one of several variants — each holding different data. Together they form Rust's type system backbone. Enums are vastly more powerful than C enums: each variant can carry data, making them ideal for state machines, errors, and parsed structures. <code>match</code> is exhaustive — adding a variant is a compile error at all match sites.</div>
+  <span class="tag tag-r">model domain data</span><span class="tag tag-b">state machines</span><span class="tag tag-g">replace class hierarchies</span>
+</div>
+<div class="two">
+<div class="card"><div class="card-head">Struct variants</div><pre><span class="kw">struct</span> <span class="ty">User</span> { name: <span class="ty">String</span>, age: <span class="ty">u32</span> } <span class="cm">// named</span>
+<span class="kw">struct</span> <span class="ty">Meters</span>(<span class="ty">f64</span>);         <span class="cm">// tuple/newtype</span>
+<span class="kw">struct</span> <span class="ty">Marker</span>;              <span class="cm">// unit — no data</span>
+
+<span class="kw">impl</span> <span class="ty">User</span> {
+    <span class="kw">pub fn</span> new(name: &<span class="ty">str</span>, age: <span class="ty">u32</span>) -> <span class="ty">Self</span> {
+        <span class="ty">User</span> { name: name.to_owned(), age }
+    }
+    <span class="kw">pub fn</span> greet(&<span class="kw">self</span>) -> <span class="ty">String</span> {
+        <span class="mac">format!</span>(<span class="st">"Hi, I'm {}"</span>, self.name)
+    }
+}</pre></div>
+<div class="card"><div class="card-head">Enum with data</div><pre><span class="kw">enum</span> <span class="ty">Shape</span> {
+    Circle(<span class="ty">f64</span>),
+    Rect { w: <span class="ty">f64</span>, h: <span class="ty">f64</span> },
+    Point,
+}
+<span class="kw">match</span> shape {
+    <span class="ty">Shape</span>::Circle(r)    => r * r * PI,
+    <span class="ty">Shape</span>::Rect {w, h} => w * h,
+    <span class="ty">Shape</span>::Point       => <span class="num">0.0</span>,
+}</pre></div>
+</div>
+<div class="card"><div class="card-head">Pattern matching</div><pre><span class="kw">if let</span> <span class="ty">Some</span>(v) = maybe { }            <span class="cm">// one branch</span>
+<span class="kw">while let</span> <span class="ty">Some</span>(v) = stack.pop() { }  <span class="cm">// loop</span>
+<span class="kw">let</span> <span class="ty">Ok</span>(data) = result <span class="kw">else</span> { <span class="kw">return</span>; }; <span class="cm">// let-else</span>
+<span class="kw">let</span> (x, y, ..) = (1, 2, 3, 4);      <span class="cm">// .. ignores rest</span>
+<span class="kw">let</span> <span class="ty">User</span> { name, .. } = user;        <span class="cm">// partial destructure</span></pre></div>
+</div>
+
+<!-- ═══ TRAITS ═══ -->
+<div class="panel" id="p-traits">
+<div class="intro">
+  <div class="intro-title">Traits — shared behavior & polymorphism</div>
+  <div class="intro-text">Traits define a contract of methods any implementing type must provide. <strong>impl Trait</strong> = static dispatch (zero overhead, monomorphized). <strong>dyn Trait</strong> = dynamic dispatch (vtable, runtime flexibility). Prefer static unless you need a heterogeneous collection or runtime type selection. The orphan rule prevents implementing a foreign trait for a foreign type.</div>
+  <span class="tag tag-r">polymorphism</span><span class="tag tag-b">operator overloading</span><span class="tag tag-g">code reuse</span>
+</div>
+<div class="two">
+<div class="card"><div class="card-head">Define & implement</div><pre><span class="kw">trait</span> <span class="ty">Drawable</span> {
+    <span class="kw">fn</span> draw(&<span class="kw">self</span>);
+    <span class="kw">fn</span> area(&<span class="kw">self</span>) -> <span class="ty">f64</span> { <span class="num">0.0</span> } <span class="cm">// default</span>
+}
+<span class="kw">impl</span> <span class="ty">Drawable</span> <span class="kw">for</span> <span class="ty">Circle</span> {
+    <span class="kw">fn</span> draw(&<span class="kw">self</span>) { <span class="mac">println!</span>(<span class="st">"○"</span>); }
+}</pre></div>
+<div class="card"><div class="card-head">static vs dynamic dispatch</div><pre><span class="cm">// impl Trait — zero cost, one type per callsite</span>
+<span class="kw">fn</span> render(s: &<span class="kw">impl</span> <span class="ty">Drawable</span>) { s.draw(); }
+
+<span class="cm">// dyn Trait — vtable, mixed types</span>
+<span class="kw">let</span> shapes: <span class="ty">Vec</span>&lt;<span class="ty">Box</span>&lt;<span class="kw">dyn</span> <span class="ty">Drawable</span>&gt;&gt; = <span class="kw">vec!</span>[
+    <span class="ty">Box</span>::new(<span class="ty">Circle</span> { .. }),
+    <span class="ty">Box</span>::new(<span class="ty">Rect</span> { .. }),
+];</pre></div>
+</div>
+<div class="card"><div class="card-head">Standard traits reference</div>
+<table class="ct"><tr><th>Trait</th><th>Purpose</th><th>Derive?</th></tr>
+<tr><td>Debug</td><td class="mu">fmt with {:?}</td><td class="ok-c">yes</td></tr>
+<tr><td>Display</td><td class="mu">fmt with {} — user-facing</td><td class="er-c">manual</td></tr>
+<tr><td>Clone / Copy</td><td class="mu">Deep / bitwise copy</td><td class="ok-c">yes</td></tr>
+<tr><td>PartialEq / Eq</td><td class="mu">== comparison</td><td class="ok-c">yes</td></tr>
+<tr><td>PartialOrd / Ord</td><td class="mu">&lt; &gt; comparison, .sort()</td><td class="ok-c">yes</td></tr>
+<tr><td>Hash</td><td class="mu">Use as HashMap/Set key</td><td class="ok-c">yes</td></tr>
+<tr><td>Default</td><td class="mu">T::default() zero value</td><td class="ok-c">yes</td></tr>
+<tr><td>From / Into</td><td class="mu">Type conversion</td><td class="er-c">manual</td></tr>
+<tr><td>Iterator</td><td class="mu">Custom iteration</td><td class="er-c">manual</td></tr>
+<tr><td>Drop</td><td class="mu">Custom destructor logic</td><td class="er-c">manual</td></tr>
+<tr><td>Deref / DerefMut</td><td class="mu">* operator, coercions</td><td class="er-c">manual</td></tr>
+<tr><td>Send / Sync</td><td class="mu">Thread-safety markers</td><td class="ok-c">auto</td></tr>
+<tr><td>Add/Sub/Mul…</td><td class="mu">Operator overloading</td><td class="er-c">manual</td></tr>
+</table></div>
+</div>
+
+<!-- ═══ ERRORS ═══ -->
+<div class="panel" id="p-errors">
+<div class="intro">
+  <div class="intro-title">Error Handling — explicit, composable, no exceptions</div>
+  <div class="intro-text">Errors are values. <strong>Option&lt;T&gt;</strong> for presence/absence (nullable replacement). <strong>Result&lt;T,E&gt;</strong> for success/failure. The <code>?</code> operator propagates errors up the call stack ergonomically. Panics are for programmer bugs, not expected failures. Use <strong>thiserror</strong> for library error types, <strong>anyhow</strong> for application code.</div>
+  <span class="tag tag-r">no silent failures</span><span class="tag tag-b">? propagation</span><span class="tag tag-g">composable</span>
+</div>
+<div class="two">
+<div class="card"><div class="card-head">Option&lt;T&gt;</div><pre>name.unwrap()             <span class="cm">// panic if None</span>
+name.unwrap_or(<span class="st">"anon"</span>)   <span class="cm">// safe default</span>
+name.map(|n| n.len())     <span class="cm">// Some(n) or None</span>
+name.and_then(|n| f(n))  <span class="cm">// chain Options</span>
+name.filter(|n| n.len()>2)
+name.ok_or(<span class="st">"missing"</span>)   <span class="cm">// convert to Result</span>
+name.as_deref()           <span class="cm">// Option&lt;&str&gt; from Option&lt;String&gt;</span></pre></div>
+<div class="card"><div class="card-head">Result&lt;T, E&gt;</div><pre>r.unwrap()               <span class="cm">// panic on Err</span>
+r.unwrap_or(<span class="num">0</span>)          <span class="cm">// default on Err</span>
+r.expect(<span class="st">"msg"</span>)        <span class="cm">// panic with message</span>
+r.map(|v| v * <span class="num">2</span>)       <span class="cm">// transform Ok</span>
+r.map_err(|e| log(e))   <span class="cm">// transform Err</span>
+r.and_then(|v| next(v)) <span class="cm">// chain Results</span>
+r.ok()                  <span class="cm">// convert to Option</span></pre></div>
+</div>
+<div class="card"><div class="card-head">? operator & error crates</div><pre><span class="kw">fn</span> run() -> <span class="ty">Result</span>&lt;<span class="ty">String</span>, <span class="ty">io::Error</span>&gt; {
+    <span class="kw">let</span> s = fs::read_to_string(<span class="st">"f.txt"</span>)?; <span class="cm">// return Err on fail</span>
+    <span class="ty">Ok</span>(s.trim().to_string())
+}
+
+<span class="cm">// thiserror — library errors (generates boilerplate)</span>
+<span class="kw">#[derive(</span><span class="ty">thiserror::Error</span>, <span class="ty">Debug</span><span class="kw">)]</span>
+<span class="kw">enum</span> <span class="ty">MyErr</span> {
+    <span class="kw">#[error(</span><span class="st">"io: {0}"</span><span class="kw">)]</span> Io(<span class="kw">#[from]</span> <span class="ty">io::Error</span>),
+}
+
+<span class="cm">// anyhow — application errors (easiest, any error type)</span>
+<span class="kw">fn</span> run() -> anyhow::<span class="ty">Result</span>&lt;()&gt; {
+    <span class="kw">let</span> s = fs::read_to_string(<span class="st">"f"</span>)?; <span class="cm">// just works</span>
+    <span class="ty">Ok</span>(())
+}</pre></div>
+</div>
+
+<!-- ═══ COLLECTIONS ═══ -->
+<div class="panel" id="p-collections">
+<div class="intro">
+  <div class="intro-title">Collections — heap-allocated, growable data structures</div>
+  <div class="intro-text"><strong>Vec&lt;T&gt;</strong> is the default — contiguous, cache-friendly, O(1) index/push. <strong>HashMap&lt;K,V&gt;</strong> for fast lookups. <strong>BTreeMap</strong> for sorted keys. <strong>VecDeque</strong> for queues. Use <code>with_capacity(n)</code> when you know the size upfront — avoids reallocation. The entry() API is idiomatic for upsert patterns.</div>
+  <span class="tag tag-r">Vec for sequences</span><span class="tag tag-b">HashMap for lookups</span><span class="tag tag-g">BTree for sorted</span>
+</div>
+<div class="card"><div class="card-head">Vec&lt;T&gt; methods</div>
+<table class="ct"><tr><th>Method</th><th>Returns</th><th>Notes</th></tr>
+<tr><td>Vec::with_capacity(n)</td><td class="mu">Vec</td><td class="mu">Pre-allocate — avoids reallocations</td></tr>
+<tr><td>v.push(x) / v.pop()</td><td class="mu">() / Option</td><td class="mu">O(1) amortized</td></tr>
+<tr><td>v.insert(i,x) / v.remove(i)</td><td class="mu">() / T</td><td class="mu">O(n) — shifts elements</td></tr>
+<tr><td>v.swap_remove(i)</td><td class="mu">T</td><td class="mu">O(1) — swaps with last, changes order</td></tr>
+<tr><td>v.get(i) / v[i]</td><td class="mu">Option / T</td><td class="mu">Safe vs panicking access</td></tr>
+<tr><td>v.first() / v.last()</td><td class="mu">Option&lt;&T&gt;</td><td class="mu"></td></tr>
+<tr><td>v.sort() / v.sort_by_key()</td><td class="mu">()</td><td class="mu">Stable sort in place</td></tr>
+<tr><td>v.retain(|x| pred)</td><td class="mu">()</td><td class="mu">Keep matching elements</td></tr>
+<tr><td>v.dedup()</td><td class="mu">()</td><td class="mu">Remove consecutive dups — sort first!</td></tr>
+<tr><td>v.extend(iter)</td><td class="mu">()</td><td class="mu">Append from iterator</td></tr>
+<tr><td>v.drain(range)</td><td class="mu">Iterator</td><td class="mu">Remove + iterate a range</td></tr>
+<tr><td>v.windows(n) / v.chunks(n)</td><td class="mu">Iterator</td><td class="mu">Overlapping / non-overlapping slices</td></tr>
+<tr><td>v.split_at(i)</td><td class="mu">(&[T], &[T])</td><td class="mu">Split into two slices</td></tr>
+</table></div>
+<div class="card"><div class="card-head">HashMap methods</div>
+<table class="ct"><tr><th>Method</th><th>Notes</th></tr>
+<tr><td>m.insert(k, v)</td><td class="mu">Returns Option&lt;V&gt; (old value if key existed)</td></tr>
+<tr><td>m.get(&k) / m.get_mut(&k)</td><td class="mu">Option reference to value</td></tr>
+<tr><td>m.remove(&k)</td><td class="mu">Option&lt;V&gt; — removes and returns</td></tr>
+<tr><td>m.entry(k).or_insert(v)</td><td class="mu">Insert if missing, return &mut V</td></tr>
+<tr><td>m.entry(k).or_default()</td><td class="mu">Insert Default::default() if missing</td></tr>
+<tr><td>m.entry(k).and_modify(|v| *v+=1).or_insert(0)</td><td class="mu">Upsert with modify</td></tr>
+<tr><td>m.contains_key(&k)</td><td class="mu">bool</td></tr>
+<tr><td>m.retain(|k,v| pred)</td><td class="mu">Keep matching pairs</td></tr>
+<tr><td>m.iter() / m.keys() / m.values()</td><td class="mu">Various iterators</td></tr>
+</table></div>
+<div class="card"><div class="card-head">Which collection?</div>
+<table class="ct"><tr><th>Need</th><th>Use</th></tr>
+<tr><td>Ordered sequence, fast end ops</td><td class="bl-c">Vec&lt;T&gt;</td></tr>
+<tr><td>Queue (FIFO) / stack (LIFO)</td><td class="bl-c">VecDeque&lt;T&gt; / Vec&lt;T&gt;</td></tr>
+<tr><td>Key-value lookup, fast</td><td class="bl-c">HashMap&lt;K,V&gt;</td></tr>
+<tr><td>Key-value, sorted iteration</td><td class="bl-c">BTreeMap&lt;K,V&gt;</td></tr>
+<tr><td>Unique elements, fast</td><td class="bl-c">HashSet&lt;T&gt;</td></tr>
+<tr><td>Priority queue / max-heap</td><td class="bl-c">BinaryHeap&lt;T&gt;</td></tr>
+<tr><td>Thread-shared mutable data</td><td class="bl-c">Arc&lt;Mutex&lt;Vec&gt;&gt;</td></tr>
+</table></div>
+</div>
+
+<!-- ═══ ITERATORS ═══ -->
+<div class="panel" id="p-iterators">
+<div class="intro">
+  <div class="intro-title">Iterators — lazy, composable, zero-cost</div>
+  <div class="intro-text">Iterators are lazy — nothing runs until a consumer triggers them. The compiler inlines chains into tight loops matching hand-written performance. Three kinds: <code>.iter()</code> borrows, <code>.iter_mut()</code> mutably borrows, <code>.into_iter()</code> consumes. Learning to think in iterators replaces most for loops.</div>
+  <span class="tag tag-r">replaces most loops</span><span class="tag tag-b">data pipelines</span><span class="tag tag-g">zero overhead</span>
+</div>
+<div class="card"><div class="card-head">Adapters (lazy)</div>
+<table class="ct"><tr><th>Adapter</th><th>Description</th></tr>
+<tr><td>.map(|x| …)</td><td class="mu">Transform each element</td></tr>
+<tr><td>.filter(|x| …)</td><td class="mu">Keep where predicate is true</td></tr>
+<tr><td>.filter_map(|x| …)</td><td class="mu">map + filter — return Option</td></tr>
+<tr><td>.flat_map(|x| …)</td><td class="mu">map then flatten one level</td></tr>
+<tr><td>.enumerate()</td><td class="mu">Pair with (usize, T)</td></tr>
+<tr><td>.zip(other)</td><td class="mu">Pair elements from two iters</td></tr>
+<tr><td>.chain(other)</td><td class="mu">Concatenate two iterators</td></tr>
+<tr><td>.take(n) / .skip(n)</td><td class="mu">First n / skip first n</td></tr>
+<tr><td>.take_while(pred) / .skip_while(pred)</td><td class="mu">Conditional take/skip</td></tr>
+<tr><td>.cloned() / .copied()</td><td class="mu">Clone/Copy &T → T</td></tr>
+<tr><td>.rev()</td><td class="mu">Reverse (needs DoubleEndedIterator)</td></tr>
+<tr><td>.peekable()</td><td class="mu">Add .peek() without consuming</td></tr>
+<tr><td>.inspect(|x| …)</td><td class="mu">Side-effect without transforming (debug)</td></tr>
+</table></div>
+<div class="card"><div class="card-head">Consumers (trigger execution)</div>
+<table class="ct"><tr><th>Consumer</th><th>Returns</th></tr>
+<tr><td>.collect::&lt;Vec&lt;_&gt;&gt;()</td><td class="mu">Vec, HashMap, String, …</td></tr>
+<tr><td>.count()</td><td class="mu">usize</td></tr>
+<tr><td>.sum() / .product()</td><td class="mu">numeric total</td></tr>
+<tr><td>.min() / .max()</td><td class="mu">Option&lt;T&gt;</td></tr>
+<tr><td>.min_by_key(|x| …)</td><td class="mu">Option&lt;T&gt;</td></tr>
+<tr><td>.find(|x| …)</td><td class="mu">Option&lt;T&gt;</td></tr>
+<tr><td>.position(|x| …)</td><td class="mu">Option&lt;usize&gt;</td></tr>
+<tr><td>.any(pred) / .all(pred)</td><td class="mu">bool — short-circuits</td></tr>
+<tr><td>.fold(init, |acc,x| …)</td><td class="mu">accumulated value</td></tr>
+<tr><td>.partition(pred)</td><td class="mu">(Vec, Vec) — split matching/non</td></tr>
+<tr><td>.unzip()</td><td class="mu">(Vec, Vec) — from iter of tuples</td></tr>
+<tr><td>.for_each(|x| …)</td><td class="mu">() side effects</td></tr>
+</table></div>
+</div>
+
+<!-- ═══ ASYNC ═══ -->
+<div class="panel" id="p-async">
+<div class="intro">
+  <div class="intro-title">Async / Await — concurrent I/O without blocking threads</div>
+  <div class="intro-text">async fn returns a Future — a lazy state machine. Nothing runs until .await or a runtime polls it. .await suspends the current task (yields the thread), letting other tasks run. No thread is blocked. Most common runtime: <strong>Tokio</strong> for servers/production, <strong>async-std</strong> as alternative. Don't use std::thread::sleep in async — use tokio::time::sleep.</div>
+  <span class="tag tag-r">web servers</span><span class="tag tag-b">I/O concurrency</span><span class="tag tag-g">thousands of connections</span>
+</div>
+<div class="card"><div class="card-head">Basics</div><pre><span class="cm">// Cargo.toml: tokio = { version = "1", features = ["full"] }</span>
+<span class="kw">#[tokio::main]</span>
+<span class="kw">async fn</span> main() -> anyhow::<span class="ty">Result</span>&lt;()&gt; {
+    <span class="kw">let</span> body = fetch(<span class="st">"https://example.com"</span>).await?;
+    <span class="ty">Ok</span>(())
+}
+<span class="kw">async fn</span> fetch(url: &<span class="ty">str</span>) -> anyhow::<span class="ty">Result</span>&lt;<span class="ty">String</span>&gt; {
+    <span class="kw">let</span> text = reqwest::get(url).await?.text().await?;
+    <span class="ty">Ok</span>(text)
+}</pre></div>
+<div class="two">
+<div class="card"><div class="card-head">Concurrent tasks</div><pre><span class="cm">// spawn — independent tasks</span>
+<span class="kw">let</span> h = tokio::spawn(<span class="kw">async</span> { work().await });
+<span class="kw">let</span> result = h.await??;
+
+<span class="cm">// join! — all complete</span>
+<span class="kw">let</span> (a, b) = tokio::join!(fut_a, fut_b);
+
+<span class="cm">// select! — first wins</span>
+tokio::select! {
+    v = fut_a => { },
+    _ = time::sleep(dur) => { },
+}</pre></div>
+<div class="card"><div class="card-head">Shared state</div><pre><span class="kw">use</span> std::sync::<span class="ty">Arc</span>;
+<span class="kw">use</span> tokio::sync::<span class="ty">Mutex</span>; <span class="cm">// async mutex</span>
+
+<span class="kw">let</span> state = <span class="ty">Arc</span>::new(<span class="ty">Mutex</span>::new(<span class="num">0</span>));
+<span class="kw">let</span> s = state.clone();
+tokio::spawn(<span class="kw">async move</span> {
+    <span class="kw">let mut</span> lock = s.lock().await;
+    *lock += <span class="num">1</span>;
+});</pre></div>
+</div>
+<div class="card"><div class="card-head">Async reference</div>
+<table class="ct"><tr><th>Concept</th><th>Description</th></tr>
+<tr><td>Future&lt;Output=T&gt;</td><td class="mu">Lazy value — does nothing until polled</td></tr>
+<tr><td>.await</td><td class="mu">Suspend task, yield thread to runtime</td></tr>
+<tr><td>tokio::spawn</td><td class="mu">Independent concurrent task (needs Send + 'static)</td></tr>
+<tr><td>tokio::join!</td><td class="mu">Run multiple futures concurrently, wait for all</td></tr>
+<tr><td>tokio::select!</td><td class="mu">First future wins, cancel others</td></tr>
+<tr><td>tokio::sync::mpsc</td><td class="mu">Multi-producer single-consumer channel</td></tr>
+<tr><td>tokio::sync::oneshot</td><td class="mu">Single-value request-response channel</td></tr>
+<tr><td>tokio::sync::RwLock</td><td class="mu">Many readers OR one writer</td></tr>
+<tr><td>spawn_blocking</td><td class="mu">Run blocking code on thread pool (heavy CPU/IO)</td></tr>
+<tr><td>async-trait</td><td class="mu">Crate for async fns in trait definitions</td></tr>
+<tr><td>Pin&lt;T&gt;</td><td class="mu">Prevent moving a Future (self-referential state machines)</td></tr>
+</table></div>
+</div>
+
+<!-- ═══ GENERICS ═══ -->
+<div class="panel" id="p-generics">
+<div class="intro">
+  <div class="intro-title">Generics — write once, specialize at compile time</div>
+  <div class="intro-text">Generics are monomorphized — the compiler generates a concrete version for each type used. Zero runtime cost. Trait bounds constrain accepted types. Three styles for trait bounds are equivalent; use where clauses for readability with multiple/complex bounds.</div>
+  <span class="tag tag-r">zero-cost abstraction</span><span class="tag tag-b">DRY across types</span><span class="tag tag-g">compile-time specialization</span>
+</div>
+<div class="card"><div class="card-head">Generic syntax styles</div><pre><span class="cm">// All equivalent — pick based on readability</span>
+<span class="kw">fn</span> f&lt;T: <span class="ty">Display</span> + <span class="ty">Clone</span>&gt;(x: T) { }
+<span class="kw">fn</span> f(x: <span class="kw">impl</span> <span class="ty">Display</span> + <span class="ty">Clone</span>) { }
+<span class="kw">fn</span> f&lt;T&gt;(x: T) <span class="kw">where</span> T: <span class="ty">Display</span> + <span class="ty">Clone</span> { }
+
+<span class="cm">// Generic struct</span>
+<span class="kw">struct</span> <span class="ty">Stack</span>&lt;T&gt; { items: <span class="ty">Vec</span>&lt;T&gt; }
+<span class="kw">impl</span>&lt;T&gt; <span class="ty">Stack</span>&lt;T&gt; { <span class="cm">/* any T */</span> }
+<span class="kw">impl</span>&lt;T: <span class="ty">Display</span>&gt; <span class="ty">Stack</span>&lt;T&gt; { <span class="cm">/* only when T: Display */</span> }</pre></div>
+<div class="edge"><div class="edge-head">⚠ Edge cases</div><ul class="elist">
+<li><span class="sym">▸</span><span><strong>Monomorphization bloat:</strong> many different type uses means larger binary. Use dyn Trait to trade runtime cost for size.</span></li>
+<li><span class="sym">▸</span><span><strong>Turbofish:</strong> "42".parse::&lt;i32&gt;() — when the compiler can't infer the type, annotate with ::&lt;Type&gt;.</span></li>
+<li><span class="sym">▸</span><span><strong>PhantomData:</strong> for zero-size type tracking without holding a T value — common in unsafe code and type-state patterns.</span></li>
+</ul></div>
+</div>
+
+<!-- ═══ SMART POINTERS ═══ -->
+<div class="panel" id="p-smartptr">
+<div class="intro">
+  <div class="intro-title">Smart Pointers — ownership with extra powers</div>
+  <div class="intro-text">Smart pointers are structs that behave like pointers but add capabilities: heap allocation, reference counting, interior mutability, or thread safety. They implement <code>Deref</code> so they auto-coerce to their inner type. Understanding when to use Box, Rc, Arc, RefCell, and Mutex is crucial for real Rust programs.</div>
+  <span class="tag tag-r">heap allocation</span><span class="tag tag-b">shared ownership</span><span class="tag tag-g">interior mutability</span>
+</div>
+<div class="card"><div class="card-head">Smart pointer reference</div>
+<table class="ct"><tr><th>Type</th><th>Use when</th><th>Thread safe?</th></tr>
+<tr><td>Box&lt;T&gt;</td><td class="mu">Heap-allocate a value; recursive types; large values on heap</td><td class="ok-c">yes (Send if T: Send)</td></tr>
+<tr><td>Rc&lt;T&gt;</td><td class="mu">Multiple owners in single-threaded code</td><td class="er-c">no</td></tr>
+<tr><td>Arc&lt;T&gt;</td><td class="mu">Multiple owners across threads (atomic ref count)</td><td class="ok-c">yes</td></tr>
+<tr><td>RefCell&lt;T&gt;</td><td class="mu">Interior mutability — borrow rules checked at runtime</td><td class="er-c">no</td></tr>
+<tr><td>Cell&lt;T&gt;</td><td class="mu">Interior mutability for Copy types — no borrow overhead</td><td class="er-c">no</td></tr>
+<tr><td>Mutex&lt;T&gt;</td><td class="mu">Exclusive mutable access across threads</td><td class="ok-c">yes</td></tr>
+<tr><td>RwLock&lt;T&gt;</td><td class="mu">Many readers OR one writer across threads</td><td class="ok-c">yes</td></tr>
+<tr><td>Cow&lt;'a, T&gt;</td><td class="mu">Clone-on-write — borrow until mutation needed</td><td class="mu">depends on T</td></tr>
+</table></div>
+<div class="two">
+<div class="card"><div class="card-head">Box&lt;T&gt; — heap allocation</div><pre><span class="cm">// Recursive type needs Box (known size)</span>
+<span class="kw">enum</span> <span class="ty">List</span> {
+    Cons(<span class="ty">i32</span>, <span class="ty">Box</span>&lt;<span class="ty">List</span>&gt;),
+    Nil,
+}
+<span class="cm">// Heap-allocate a large struct</span>
+<span class="kw">let</span> b = <span class="ty">Box</span>::new(<span class="ty">HugeStruct</span> { .. });
+<span class="cm">// Box deref-coerces: *b gives HugeStruct</span></pre></div>
+<div class="card"><div class="card-head">Rc / Arc — shared ownership</div><pre><span class="kw">use</span> std::rc::<span class="ty">Rc</span>;
+<span class="kw">let</span> a = <span class="ty">Rc</span>::new(<span class="num">5</span>);
+<span class="kw">let</span> b = <span class="ty">Rc</span>::clone(&a); <span class="cm">// ref count = 2</span>
+<span class="ty">Rc</span>::strong_count(&a);  <span class="cm">// 2</span>
+
+<span class="kw">use</span> std::sync::<span class="ty">Arc</span>;
+<span class="kw">let</span> a = <span class="ty">Arc</span>::new(<span class="ty">String</span>::from(<span class="st">"shared"</span>));
+<span class="kw">let</span> b = <span class="ty">Arc</span>::clone(&a); <span class="cm">// for threads</span></pre></div>
+</div>
+<div class="card"><div class="card-head">RefCell&lt;T&gt; — interior mutability (single-thread)</div><pre><span class="kw">use</span> std::cell::<span class="ty">RefCell</span>;
+<span class="kw">let</span> data = <span class="ty">RefCell</span>::new(<span class="kw">vec!</span>[<span class="num">1</span>,<span class="num">2</span>,<span class="num">3</span>]);
+
+data.borrow();       <span class="cm">// &Vec — panics if mut borrow exists</span>
+data.borrow_mut();   <span class="cm">// &mut Vec — panics if any borrow exists</span>
+data.try_borrow();   <span class="cm">// Result — safe, no panic</span>
+
+<span class="cm">// Common pattern: Rc&lt;RefCell&lt;T&gt;&gt; = shared mutable (single-thread)</span>
+<span class="kw">let</span> shared = <span class="ty">Rc</span>::new(<span class="ty">RefCell</span>::new(<span class="kw">vec!</span>[]));
+shared.borrow_mut().push(<span class="num">1</span>);</pre></div>
+<div class="card"><div class="card-head">Mutex&lt;T&gt; — shared mutable across threads</div><pre><span class="kw">use</span> std::sync::{<span class="ty">Arc</span>, <span class="ty">Mutex</span>};
+<span class="kw">let</span> counter = <span class="ty">Arc</span>::new(<span class="ty">Mutex</span>::new(<span class="num">0</span>));
+
+<span class="kw">let</span> c = counter.clone();
+std::thread::spawn(<span class="kw">move</span> || {
+    <span class="kw">let mut</span> n = c.lock().unwrap(); <span class="cm">// blocks until available</span>
+    *n += <span class="num">1</span>;
+}); <span class="cm">// lock released when n drops</span>
+<span class="cm">// Use tokio::sync::Mutex in async code!</span></pre></div>
+<div class="edge"><div class="edge-head">⚠ Edge cases</div><ul class="elist">
+<li><span class="sym">▸</span><span><strong>Rc cycles leak memory:</strong> Rc&lt;T&gt; doesn't handle cycles — use Weak&lt;T&gt; (a non-owning reference) to break cycles. Rc::downgrade() creates a Weak.</span></li>
+<li><span class="sym">▸</span><span><strong>Mutex poisoning:</strong> if a thread panics while holding a lock, the Mutex is "poisoned". lock().unwrap() panics — use lock().unwrap_or_else(|e| e.into_inner()) to recover.</span></li>
+<li><span class="sym">▸</span><span><strong>std Mutex in async:</strong> never hold a std::sync::Mutex across an .await — use tokio::sync::Mutex instead to avoid deadlocks.</span></li>
+<li><span class="sym">▸</span><span><strong>Cow for efficient strings:</strong> Cow&lt;'_, str&gt; is either &str (borrowed) or String (owned). Great for functions that sometimes need to modify and sometimes don't.</span></li>
+</ul></div>
+</div>
+
+<!-- ═══ MACROS ═══ -->
+<div class="panel" id="p-macros">
+<div class="intro">
+  <div class="intro-title">Macros — metaprogramming & code generation</div>
+  <div class="intro-text">Macros operate on syntax, not values — they expand before compilation. <strong>Declarative macros</strong> (macro_rules!) match patterns and expand. <strong>Procedural macros</strong> (derive, attribute, function-like) manipulate the AST. You'll use built-in macros constantly. Writing custom macros is advanced but powerful for reducing boilerplate.</div>
+  <span class="tag tag-r">variadic arguments</span><span class="tag tag-b">code generation</span><span class="tag tag-g">derive boilerplate</span>
+</div>
+<div class="card"><div class="card-head">Most-used built-in macros</div>
+<table class="ct"><tr><th>Macro</th><th>What it does</th></tr>
+<tr><td>println!("{}",x)</td><td class="mu">Print to stdout with newline</td></tr>
+<tr><td>print!("{}",x)</td><td class="mu">Print to stdout, no newline</td></tr>
+<tr><td>eprintln!("{}",x)</td><td class="mu">Print to stderr with newline</td></tr>
+<tr><td>format!("{x}{y}")</td><td class="mu">Format to String without printing</td></tr>
+<tr><td>dbg!(expr)</td><td class="mu">Print file:line:value to stderr, returns the value — perfect for debugging</td></tr>
+<tr><td>vec![1,2,3]</td><td class="mu">Create Vec with initial values</td></tr>
+<tr><td>panic!("msg")</td><td class="mu">Unrecoverable error — crash with message</td></tr>
+<tr><td>todo!()</td><td class="mu">Placeholder — panics with "not yet implemented"</td></tr>
+<tr><td>unimplemented!()</td><td class="mu">Like todo! — semantic: should not be called</td></tr>
+<tr><td>unreachable!()</td><td class="mu">Mark code paths that must never be reached</td></tr>
+<tr><td>assert!(cond)</td><td class="mu">Panic if condition is false</td></tr>
+<tr><td>assert_eq!(a,b)</td><td class="mu">Panic if a != b (prints both values)</td></tr>
+<tr><td>assert_ne!(a,b)</td><td class="mu">Panic if a == b</td></tr>
+<tr><td>include_str!("file")</td><td class="mu">Embed file contents as &str at compile time</td></tr>
+<tr><td>include_bytes!("file")</td><td class="mu">Embed file as &[u8] at compile time</td></tr>
+<tr><td>env!("VAR")</td><td class="mu">Read env variable at compile time</td></tr>
+<tr><td>concat!("a","b")</td><td class="mu">Concatenate string literals at compile time</td></tr>
+<tr><td>cfg!(feature="x")</td><td class="mu">Evaluate compile-time condition → bool</td></tr>
+<tr><td>matches!(val, pat)</td><td class="mu">Pattern match → bool (since Rust 1.42)</td></tr>
+<tr><td>write! / writeln!</td><td class="mu">Write to a buffer (impl Write) — like print! but for files/strings</td></tr>
+</table></div>
+<div class="two">
+<div class="card"><div class="card-head">Derive macros</div><pre><span class="kw">#[derive(Debug, Clone, PartialEq, Eq, Hash)]</span>
+<span class="kw">struct</span> <span class="ty">Point</span> { x: <span class="ty">i32</span>, y: <span class="ty">i32</span> }
+
+<span class="kw">#[derive(Debug, serde::Serialize, serde::Deserialize)]</span>
+<span class="kw">struct</span> <span class="ty">Config</span> { name: <span class="ty">String</span>, port: <span class="ty">u16</span> }
+
+<span class="kw">#[derive(</span><span class="ty">thiserror::Error</span>, <span class="ty">Debug</span><span class="kw">)]</span>
+<span class="kw">enum</span> <span class="ty">MyError</span> { <span class="cm">/* ... */</span> }</pre></div>
+<div class="card"><div class="card-head">macro_rules! basics</div><pre><span class="mac">macro_rules!</span> say_hello {
+    () => { <span class="mac">println!</span>(<span class="st">"hello"</span>); };
+    ($name:expr) => {
+        <span class="mac">println!</span>(<span class="st">"hello {}"</span>, $name);
+    };
+}
+<span class="mac">say_hello!</span>();          <span class="cm">// hello</span>
+<span class="mac">say_hello!</span>(<span class="st">"Alice"</span>);  <span class="cm">// hello Alice</span></pre></div>
+</div>
+<div class="card"><div class="card-head">Attributes — configure compilation</div>
+<table class="ct"><tr><th>Attribute</th><th>Purpose</th></tr>
+<tr><td>#[derive(…)]</td><td class="mu">Auto-implement traits</td></tr>
+<tr><td>#[cfg(test)]</td><td class="mu">Only compile in test builds</td></tr>
+<tr><td>#[cfg(feature = "x")]</td><td class="mu">Conditional compilation by feature flag</td></tr>
+<tr><td>#[allow(dead_code)]</td><td class="mu">Suppress unused code warning</td></tr>
+<tr><td>#[allow(unused)]</td><td class="mu">Suppress all unused warnings</td></tr>
+<tr><td>#[warn(clippy::all)]</td><td class="mu">Enable clippy lints</td></tr>
+<tr><td>#[inline] / #[inline(always)]</td><td class="mu">Hint/force inlining</td></tr>
+<tr><td>#[must_use]</td><td class="mu">Warn if return value is ignored</td></tr>
+<tr><td>#[deprecated]</td><td class="mu">Mark API as deprecated with warning</td></tr>
+<tr><td>#[test]</td><td class="mu">Mark function as a test</td></tr>
+<tr><td>#[tokio::main]</td><td class="mu">Wrap main in Tokio runtime</td></tr>
+<tr><td>#[serde(rename = "x")]</td><td class="mu">Rename field for serde serialization</td></tr>
+</table></div>
+</div>
+
+<!-- ═══ PROJECT STRUCTURE ═══ -->
+<div class="panel" id="p-project">
+<div class="intro">
+  <div class="intro-title">Project Structure — main.rs vs lib.rs, workspaces, layout</div>
+  <div class="intro-text">A <strong>crate</strong> is Rust's compilation unit. <code>main.rs</code> is the root of a binary crate — it has a main() and produces an executable. <code>lib.rs</code> is the root of a library crate — no main(), produces a .rlib for others to use. A package can have both: one lib.rs and multiple binary crates in src/bin/. Workspaces group multiple crates that share a Cargo.lock and dependency cache.</div>
+  <span class="tag tag-r">binary vs library</span><span class="tag tag-b">module organization</span><span class="tag tag-g">workspaces</span>
+</div>
+<div class="compare">
+  <div class="cmp-col">
+    <div class="cmp-title">main.rs — binary crate</div>
+    <ul class="cmp-list">
+      <li class="dot-b">Entry point: fn main()</li>
+      <li class="dot-g">Produces an executable</li>
+      <li class="dot-g">cargo run works directly</li>
+      <li class="dot-g">Can depend on a lib.rs in same package</li>
+      <li class="dot-r">Cannot be imported by other crates</li>
+      <li class="dot-r">Tests are more limited</li>
+    </ul>
+    <pre style="margin-top:10px"><span class="cm">// src/main.rs</span>
+<span class="kw">fn</span> main() {
+    <span class="mac">println!</span>(<span class="st">"Hello!"</span>);
+}
+<span class="cm">// build: cargo build
+// run:   cargo run
+// test:  cargo test</span></pre>
+  </div>
+  <div class="cmp-col">
+    <div class="cmp-title">lib.rs — library crate</div>
+    <ul class="cmp-list">
+      <li class="dot-b">No main() function</li>
+      <li class="dot-g">Produces a .rlib importable by others</li>
+      <li class="dot-g">Published to crates.io</li>
+      <li class="dot-g">Full integration test support in tests/</li>
+      <li class="dot-g">Public API documented with //!</li>
+      <li class="dot-r">Cannot be run directly</li>
+    </ul>
+    <pre style="margin-top:10px"><span class="cm">// src/lib.rs</span>
+<span class="cm">//! Crate-level documentation here</span>
+<span class="kw">pub mod</span> math;
+<span class="kw">pub use</span> math::add; <span class="cm">// re-export</span>
+
+<span class="cm">// importers: use mycrate::add;</span></pre>
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px"><div class="card-head">Standard project layout</div>
+<div class="file-tree">
+<span class="ft-dir">my_project/</span>
+├── <span class="ft-file">Cargo.toml</span>         <span class="ft-note">  ← package manifest</span>
+├── <span class="ft-file">Cargo.lock</span>         <span class="ft-note">  ← locked dependency versions (commit this!)</span>
+├── <span class="ft-file">.gitignore</span>
+├── <span class="ft-dir">src/</span>
+│   ├── <span class="ft-file">main.rs</span>        <span class="ft-note">  ← binary entry point</span>
+│   ├── <span class="ft-file">lib.rs</span>         <span class="ft-note">  ← library root (optional)</span>
+│   ├── <span class="ft-file">config.rs</span>      <span class="ft-note">  ← module (mod config; in lib.rs)</span>
+│   ├── <span class="ft-dir">models/</span>
+│   │   ├── <span class="ft-file">mod.rs</span>     <span class="ft-note">  ← old style, OR models.rs at parent level</span>
+│   │   └── <span class="ft-file">user.rs</span>
+│   └── <span class="ft-dir">bin/</span>
+│       └── <span class="ft-file">cli.rs</span>     <span class="ft-note">  ← extra binary: cargo run --bin cli</span>
+├── <span class="ft-dir">tests/</span>
+│   └── <span class="ft-file">integration.rs</span> <span class="ft-note">  ← integration tests (use lib as extern)</span>
+├── <span class="ft-dir">benches/</span>
+│   └── <span class="ft-file">bench.rs</span>       <span class="ft-note">  ← benchmarks (use criterion crate)</span>
+├── <span class="ft-dir">examples/</span>
+│   └── <span class="ft-file">demo.rs</span>        <span class="ft-note">  ← cargo run --example demo</span>
+└── <span class="ft-dir">build.rs</span>           <span class="ft-note">  ← build script (code gen, linking)</span>
+</div></div>
+
+<div class="card"><div class="card-head">Cargo.toml anatomy</div><pre><span class="sh">[package]</span>
+<span class="shf">name</span> = <span class="st">"my_app"</span>
+<span class="shf">version</span> = <span class="st">"0.1.0"</span>
+<span class="shf">edition</span> = <span class="st">"2021"</span>         <span class="shcm">  # use 2021 for new projects</span>
+<span class="shf">authors</span> = [<span class="st">"You &lt;you@email.com&gt;"</span>]
+<span class="shf">description</span> = <span class="st">"A description"</span>
+<span class="shf">license</span> = <span class="st">"MIT"</span>
+
+<span class="sh">[dependencies]</span>
+<span class="shf">serde</span> = { <span class="shf">version</span> = <span class="st">"1"</span>, <span class="shf">features</span> = [<span class="st">"derive"</span>] }
+<span class="shf">tokio</span> = { <span class="shf">version</span> = <span class="st">"1"</span>, <span class="shf">features</span> = [<span class="st">"full"</span>] }
+<span class="shf">anyhow</span> = <span class="st">"1"</span>              <span class="shcm">  # any 1.x version</span>
+
+<span class="sh">[dev-dependencies]</span>       <span class="shcm">  # only for tests/benches</span>
+<span class="shf">criterion</span> = <span class="st">"0.5"</span>
+
+<span class="sh">[features]</span>               <span class="shcm">  # optional feature flags</span>
+<span class="shf">default</span> = [<span class="st">"std"</span>]
+<span class="shf">std</span> = []
+
+<span class="sh">[profile.release]</span>        <span class="shcm">  # optimize release builds</span>
+<span class="shf">opt-level</span> = <span class="st">3</span>
+<span class="shf">lto</span> = <span class="kw">true</span></pre></div>
+
+<div class="card"><div class="card-head">Workspace layout (multi-crate)</div>
+<div class="file-tree">
+<span class="ft-dir">workspace/</span>
+├── <span class="ft-file">Cargo.toml</span>         <span class="ft-note">  ← workspace root</span>
+├── <span class="ft-file">Cargo.lock</span>         <span class="ft-note">  ← shared lockfile</span>
+├── <span class="ft-dir">crates/</span>
+│   ├── <span class="ft-dir">core/</span>          <span class="ft-note">  ← lib crate</span>
+│   │   └── <span class="ft-file">Cargo.toml</span>
+│   ├── <span class="ft-dir">api/</span>           <span class="ft-note">  ← binary (web server)</span>
+│   │   └── <span class="ft-file">Cargo.toml</span>
+│   └── <span class="ft-dir">cli/</span>           <span class="ft-note">  ← binary (command line)</span>
+│       └── <span class="ft-file">Cargo.toml</span>
+</div>
+<pre style="margin-top:10px"><span class="sh"># workspace root Cargo.toml</span>
+<span class="sh">[workspace]</span>
+<span class="shf">members</span> = [<span class="st">"crates/core"</span>, <span class="st">"crates/api"</span>, <span class="st">"crates/cli"</span>]
+<span class="shf">resolver</span> = <span class="st">"2"</span>           <span class="shcm">  # recommended</span>
+
+<span class="sh">[workspace.dependencies]</span> <span class="shcm">  # shared dep versions</span>
+<span class="shf">serde</span> = { <span class="shf">version</span> = <span class="st">"1"</span>, <span class="shf">features</span> = [<span class="st">"derive"</span>] }</pre></div>
+</div>
+
+<!-- ═══ CARGO COMMANDS ═══ -->
+<div class="panel" id="p-cargo">
+<div class="intro">
+  <div class="intro-title">Cargo — Rust's build system and package manager</div>
+  <div class="intro-text">Cargo handles building, testing, benchmarking, documentation, and dependency management. It's one of the best package managers in any language. Learn these commands well — you'll use them every day.</div>
+  <span class="tag tag-r">build & run</span><span class="tag tag-b">dependency management</span><span class="tag tag-g">testing & docs</span>
+</div>
+
+<div class="card">
+  <div class="cmd-section">Creating projects</div>
+  <table class="cmd-table">
+    <tr><td>cargo new my_app</td><td>New binary project (src/main.rs)</td></tr>
+    <tr><td>cargo new my_lib --lib</td><td>New library project (src/lib.rs)</td></tr>
+    <tr><td>cargo init</td><td>Create project in current directory</td></tr>
+    <tr><td>cargo init --lib</td><td>Library in current directory</td></tr>
+  </table>
+  <div class="cmd-section">Building</div>
+  <table class="cmd-table">
+    <tr><td>cargo build</td><td>Compile in debug mode (target/debug/)</td></tr>
+    <tr><td>cargo build --release</td><td>Compile optimized (target/release/) — slower compile, faster binary</td></tr>
+    <tr><td>cargo check</td><td>Type-check without producing binary — fastest feedback loop</td></tr>
+    <tr><td>cargo build --target wasm32-unknown-unknown</td><td>Cross-compile to WebAssembly</td></tr>
+    <tr><td>cargo build --bin my_bin</td><td>Build specific binary from src/bin/</td></tr>
+    <tr><td>cargo clean</td><td>Delete target/ directory</td></tr>
+  </table>
+  <div class="cmd-section">Running</div>
+  <table class="cmd-table">
+    <tr><td>cargo run</td><td>Build (debug) and run</td></tr>
+    <tr><td>cargo run --release</td><td>Build optimized and run</td></tr>
+    <tr><td>cargo run -- arg1 arg2</td><td>Pass arguments to your program (after --)</td></tr>
+    <tr><td>cargo run --bin cli</td><td>Run specific binary</td></tr>
+    <tr><td>cargo run --example demo</td><td>Run example from examples/</td></tr>
+  </table>
+  <div class="cmd-section">Testing</div>
+  <table class="cmd-table">
+    <tr><td>cargo test</td><td>Run all tests (unit + integration + doc tests)</td></tr>
+    <tr><td>cargo test my_fn</td><td>Run only tests matching "my_fn"</td></tr>
+    <tr><td>cargo test -- --nocapture</td><td>Show println! output in passing tests</td></tr>
+    <tr><td>cargo test -- --test-threads=1</td><td>Run tests serially (avoid parallel conflicts)</td></tr>
+    <tr><td>cargo test --doc</td><td>Run documentation tests only</td></tr>
+    <tr><td>cargo test --lib</td><td>Run unit tests only (not integration tests)</td></tr>
+    <tr><td>cargo test --test integration_test</td><td>Run specific integration test file</td></tr>
+  </table>
+  <div class="cmd-section">Dependencies</div>
+  <table class="cmd-table">
+    <tr><td>cargo add serde</td><td>Add latest serde to dependencies</td></tr>
+    <tr><td>cargo add serde --features derive</td><td>Add with feature flags</td></tr>
+    <tr><td>cargo add tokio@1.35</td><td>Add specific version</td></tr>
+    <tr><td>cargo add --dev criterion</td><td>Add as dev-dependency (tests only)</td></tr>
+    <tr><td>cargo remove serde</td><td>Remove a dependency</td></tr>
+    <tr><td>cargo update</td><td>Update all deps within semver constraints</td></tr>
+    <tr><td>cargo update -p serde</td><td>Update only serde</td></tr>
+    <tr><td>cargo tree</td><td>Print dependency tree</td></tr>
+    <tr><td>cargo tree -d</td><td>Show duplicated dependencies</td></tr>
+    <tr><td>cargo tree -i serde</td><td>Which crates depend on serde?</td></tr>
+    <tr><td>cargo search tokio</td><td>Search crates.io</td></tr>
+  </table>
+  <div class="cmd-section">Documentation</div>
+  <table class="cmd-table">
+    <tr><td>cargo doc</td><td>Generate HTML documentation</td></tr>
+    <tr><td>cargo doc --open</td><td>Generate and open in browser</td></tr>
+    <tr><td>cargo doc --no-deps</td><td>Only document your code, not dependencies</td></tr>
+  </table>
+  <div class="cmd-section">Quality & tooling</div>
+  <table class="cmd-table">
+    <tr><td>cargo fmt</td><td>Auto-format all code (uses rustfmt)</td></tr>
+    <tr><td>cargo fmt --check</td><td>Check formatting without changing files (CI)</td></tr>
+    <tr><td>cargo clippy</td><td>Run linter — shows idiomatic improvements</td></tr>
+    <tr><td>cargo clippy -- -D warnings</td><td>Fail on any clippy warning (CI)</td></tr>
+    <tr><td>cargo fix</td><td>Automatically fix compiler warnings where possible</td></tr>
+    <tr><td>cargo bench</td><td>Run benchmarks (in benches/)</td></tr>
+    <tr><td>cargo audit</td><td>Check deps for known security vulnerabilities (cargo install cargo-audit)</td></tr>
+    <tr><td>cargo outdated</td><td>Show outdated dependencies (cargo install cargo-outdated)</td></tr>
+    <tr><td>cargo expand</td><td>Show macro-expanded code (cargo install cargo-expand)</td></tr>
+    <tr><td>cargo flamegraph</td><td>Generate CPU flamegraph (cargo install flamegraph)</td></tr>
+    <tr><td>cargo publish</td><td>Publish crate to crates.io</td></tr>
+    <tr><td>cargo login</td><td>Authenticate with crates.io</td></tr>
+  </table>
+</div>
+</div>
+
+<!-- ═══ TOOLCHAIN ═══ -->
+<div class="panel" id="p-toolchain">
+<div class="intro">
+  <div class="intro-title">Toolchain — rustup, rustfmt, clippy & more</div>
+  <div class="intro-text"><strong>rustup</strong> manages Rust versions and targets. <strong>rustfmt</strong> formats code to the community standard. <strong>clippy</strong> catches common mistakes and suggests idiomatic patterns. <strong>rust-analyzer</strong> is the LSP for editor integration. Install these tools once and they'll serve you through your entire Rust career.</div>
+  <span class="tag tag-r">version management</span><span class="tag tag-b">formatting & linting</span><span class="tag tag-g">editor integration</span>
+</div>
+
+<div class="card">
+  <div class="cmd-section">rustup — toolchain manager</div>
+  <table class="cmd-table">
+    <tr><td>rustup update</td><td>Update all installed toolchains to latest</td></tr>
+    <tr><td>rustup update stable</td><td>Update stable toolchain</td></tr>
+    <tr><td>rustup show</td><td>Show installed toolchains and active one</td></tr>
+    <tr><td>rustup toolchain list</td><td>List all installed toolchains</td></tr>
+    <tr><td>rustup toolchain install nightly</td><td>Install nightly toolchain</td></tr>
+    <tr><td>rustup default stable</td><td>Set default toolchain</td></tr>
+    <tr><td>rustup override set nightly</td><td>Use nightly for current directory</td></tr>
+    <tr><td>rustup target list</td><td>Show available compilation targets</td></tr>
+    <tr><td>rustup target add wasm32-unknown-unknown</td><td>Add WebAssembly target</td></tr>
+    <tr><td>rustup target add aarch64-apple-darwin</td><td>Add ARM macOS target (M1)</td></tr>
+    <tr><td>rustup component add rustfmt</td><td>Install code formatter</td></tr>
+    <tr><td>rustup component add clippy</td><td>Install linter</td></tr>
+    <tr><td>rustup component add rust-src</td><td>Install stdlib source (for IDEs)</td></tr>
+    <tr><td>rustup component add rust-analyzer</td><td>Install LSP server</td></tr>
+    <tr><td>rustup doc</td><td>Open offline Rust documentation</td></tr>
+    <tr><td>rustup doc --book</td><td>Open "The Rust Programming Language" offline</td></tr>
+    <tr><td>rustup doc --std</td><td>Open stdlib docs offline</td></tr>
+    <tr><td>rustup self update</td><td>Update rustup itself</td></tr>
+  </table>
+
+  <div class="cmd-section">rustc — the compiler</div>
+  <table class="cmd-table">
+    <tr><td>rustc --version</td><td>Show compiler version</td></tr>
+    <tr><td>rustc main.rs</td><td>Compile single file (rarely used directly)</td></tr>
+    <tr><td>rustc --edition 2021 main.rs</td><td>Specify Rust edition</td></tr>
+    <tr><td>rustc --explain E0382</td><td>Explain a specific compiler error code</td></tr>
+    <tr><td>rustc -C opt-level=3 main.rs</td><td>Compile with maximum optimization</td></tr>
+  </table>
+
+  <div class="cmd-section">rustfmt — code formatter</div>
+  <table class="cmd-table">
+    <tr><td>cargo fmt</td><td>Format entire project (recommended)</td></tr>
+    <tr><td>rustfmt src/main.rs</td><td>Format a single file</td></tr>
+    <tr><td>cargo fmt -- --check</td><td>Check without modifying (for CI)</td></tr>
+  </table>
+  <pre><span class="sh"># rustfmt.toml — customize formatting</span>
+<span class="shf">max_width</span> = <span class="num">100</span>
+<span class="shf">tab_spaces</span> = <span class="num">4</span>
+<span class="shf">edition</span> = <span class="st">"2021"</span>
+<span class="shf">imports_granularity</span> = <span class="st">"Module"</span></pre>
+
+  <div class="cmd-section">clippy — the linter</div>
+  <table class="cmd-table">
+    <tr><td>cargo clippy</td><td>Run all default lints</td></tr>
+    <tr><td>cargo clippy --all-targets</td><td>Lint tests, examples, and benches too</td></tr>
+    <tr><td>cargo clippy -- -W clippy::pedantic</td><td>Enable pedantic (strict) lints</td></tr>
+    <tr><td>cargo clippy -- -D warnings</td><td>Treat all warnings as errors</td></tr>
+    <tr><td>cargo clippy --fix</td><td>Auto-fix clippy warnings where possible</td></tr>
+  </table>
+  <pre><span class="cm">// Suppress a specific clippy lint:</span>
+<span class="kw">#[allow(clippy::too_many_arguments)]</span>
+<span class="kw">fn</span> complex_fn(a: <span class="ty">i32</span>, b: <span class="ty">i32</span>, c: <span class="ty">i32</span>, d: <span class="ty">i32</span>, e: <span class="ty">i32</span>) { }
+
+<span class="cm">// Suppress in the whole file:</span>
+<span class="kw">#![allow(dead_code)]</span></pre>
+
+  <div class="cmd-section">rust-analyzer — LSP server</div>
+  <table class="cmd-table">
+    <tr><td>rustup component add rust-analyzer</td><td>Install (or get via IDE extension)</td></tr>
+    <tr><td>VS Code: rust-analyzer extension</td><td>Best Rust IDE experience</td></tr>
+    <tr><td>IntelliJ: Rust plugin</td><td>Full IntelliJ integration</td></tr>
+    <tr><td>Neovim: nvim-lspconfig</td><td>Configure rust-analyzer as LSP</td></tr>
+  </table>
+
+  <div class="cmd-section">Useful third-party cargo tools</div>
+  <table class="cmd-table">
+    <tr><td>cargo install cargo-watch</td><td>Re-run cargo on file changes: cargo watch -x run</td></tr>
+    <tr><td>cargo install cargo-audit</td><td>Security audit of dependencies</td></tr>
+    <tr><td>cargo install cargo-outdated</td><td>Show outdated dependencies</td></tr>
+    <tr><td>cargo install cargo-expand</td><td>Show fully expanded macro output</td></tr>
+    <tr><td>cargo install cargo-flamegraph</td><td>CPU profiling flamegraph</td></tr>
+    <tr><td>cargo install cargo-tarpaulin</td><td>Code coverage reports (Linux only)</td></tr>
+    <tr><td>cargo install cargo-deny</td><td>Policy enforcement: licenses, bans, advisories</td></tr>
+    <tr><td>cargo install cargo-nextest</td><td>Faster test runner with better output</td></tr>
+    <tr><td>cargo install wasm-pack</td><td>Build and publish WebAssembly packages</td></tr>
+    <tr><td>cargo install cross</td><td>Cross-compile via Docker — any target</td></tr>
+    <tr><td>cargo install cargo-generate</td><td>Project scaffolding from templates</td></tr>
+  </table>
+
+  <div class="cmd-section">rust-toolchain.toml — pin project toolchain</div>
+  <pre><span class="sh"># rust-toolchain.toml (commit this to repo)</span>
+<span class="sh">[toolchain]</span>
+<span class="shf">channel</span> = <span class="st">"1.78.0"</span>         <span class="shcm">  # exact version</span>
+<span class="shf">components</span> = [<span class="st">"rustfmt"</span>, <span class="st">"clippy"</span>, <span class="st">"rust-analyzer"</span>]
+<span class="shf">targets</span> = [<span class="st">"wasm32-unknown-unknown"</span>]</pre>
+</div>
+</div>
+
+<!-- ═══ ESSENTIAL CRATES ═══ -->
+<div class="panel" id="p-crates">
+<div class="intro">
+  <div class="intro-title">Essential Crates — the Rust ecosystem</div>
+  <div class="intro-text">Unlike some languages where stdlib covers everything, Rust's stdlib is lean — the ecosystem fills the gaps. These crates are the de facto standards for their categories. Most production Rust code uses serde, tokio, and anyhow at minimum. Check <a href="https://lib.rs" style="color:#CE412B">lib.rs</a> or <a href="https://crates.io" style="color:#CE412B">crates.io</a> for full rankings.</div>
+  <span class="tag tag-r">production-ready</span><span class="tag tag-b">widely adopted</span><span class="tag tag-g">well-maintained</span>
+</div>
+
+<div class="card"><div class="card-head" style="margin-bottom:12px">Serialization & Data</div>
+<div class="crate-grid">
+  <div class="crate-card core"><div class="crate-name">serde + serde_json</div><div class="crate-desc">The standard serialization framework. Derive Serialize/Deserialize on any struct. Works with JSON, TOML, YAML, MessagePack, Bincode, and more.</div><div class="crate-tags"><span class="ctag">must-have</span><span class="ctag">derive</span><span class="ctag">JSON</span></div></div>
+  <div class="crate-card core"><div class="crate-name">toml</div><div class="crate-desc">Parse and serialize TOML config files. Used internally by cargo itself.</div><div class="crate-tags"><span class="ctag">config</span><span class="ctag">serde</span></div></div>
+  <div class="crate-card"><div class="crate-name">csv</div><div class="crate-desc">Fast, flexible CSV reading and writing with optional serde integration.</div><div class="crate-tags"><span class="ctag">CSV</span><span class="ctag">serde</span></div></div>
+  <div class="crate-card"><div class="crate-name">bincode</div><div class="crate-desc">Binary encoding using serde — compact, fast, not human-readable. Great for internal protocols.</div><div class="crate-tags"><span class="ctag">binary</span><span class="ctag">serde</span></div></div>
+</div></div>
+
+<div class="card"><div class="card-head" style="margin-bottom:12px">Async & Networking</div>
+<div class="crate-grid">
+  <div class="crate-card core"><div class="crate-name">tokio</div><div class="crate-desc">The standard async runtime. Provides async I/O, timers, channels, spawn, and the #[tokio::main] macro. Almost every async project uses this.</div><div class="crate-tags"><span class="ctag">must-have</span><span class="ctag">async</span><span class="ctag">runtime</span></div></div>
+  <div class="crate-card core"><div class="crate-name">reqwest</div><div class="crate-desc">HTTP client built on tokio. Async-first with a sync option. TLS, JSON, multipart, redirects out of the box.</div><div class="crate-tags"><span class="ctag">HTTP client</span><span class="ctag">async</span></div></div>
+  <div class="crate-card core"><div class="crate-name">axum</div><div class="crate-desc">Web framework by the Tokio team. Macro-free router, type-safe extractors, tower middleware. Modern and ergonomic.</div><div class="crate-tags"><span class="ctag">web framework</span><span class="ctag">async</span></div></div>
+  <div class="crate-card"><div class="crate-name">actix-web</div><div class="crate-desc">High-performance web framework. One of the fastest HTTP servers in any language. Actor model, mature ecosystem.</div><div class="crate-tags"><span class="ctag">web framework</span><span class="ctag">fast</span></div></div>
+  <div class="crate-card"><div class="crate-name">hyper</div><div class="crate-desc">Low-level HTTP/1 and HTTP/2 library. Powers reqwest and most Rust HTTP stacks. Use directly for custom servers.</div><div class="crate-tags"><span class="ctag">HTTP</span><span class="ctag">low-level</span></div></div>
+  <div class="crate-card"><div class="crate-name">tonic</div><div class="crate-desc">gRPC framework with Protobuf code generation via prost. Built on tokio.</div><div class="crate-tags"><span class="ctag">gRPC</span><span class="ctag">protobuf</span></div></div>
+</div></div>
+
+<div class="card"><div class="card-head" style="margin-bottom:12px">Error Handling</div>
+<div class="crate-grid">
+  <div class="crate-card core"><div class="crate-name">anyhow</div><div class="crate-desc">Easy error handling for applications. Wraps any error with context(). Perfect for binaries and scripts where you want ? to just work.</div><div class="crate-tags"><span class="ctag">must-have</span><span class="ctag">applications</span></div></div>
+  <div class="crate-card core"><div class="crate-name">thiserror</div><div class="crate-desc">Derive macro for custom error types. Generates Display and Error implementations. Ideal for library crates with typed errors.</div><div class="crate-tags"><span class="ctag">must-have</span><span class="ctag">libraries</span><span class="ctag">derive</span></div></div>
+</div></div>
+
+<div class="card"><div class="card-head" style="margin-bottom:12px">CLI</div>
+<div class="crate-grid">
+  <div class="crate-card core"><div class="crate-name">clap</div><div class="crate-desc">The standard CLI argument parser. Derive mode: annotate structs with #[derive(Parser)]. Auto-generates help, completions, and validation.</div><div class="crate-tags"><span class="ctag">must-have</span><span class="ctag">CLI</span><span class="ctag">derive</span></div></div>
+  <div class="crate-card"><div class="crate-name">indicatif</div><div class="crate-desc">Progress bars and spinners for terminal applications. Composable, thread-safe.</div><div class="crate-tags"><span class="ctag">progress</span><span class="ctag">terminal</span></div></div>
+  <div class="crate-card"><div class="crate-name">colored</div><div class="crate-desc">Terminal color output. Fluent API: "error".red().bold()</div><div class="crate-tags"><span class="ctag">terminal</span><span class="ctag">color</span></div></div>
+  <div class="crate-card"><div class="crate-name">console</div><div class="crate-desc">Advanced terminal manipulation — styling, input, cursor control. By the dialoguer author.</div><div class="crate-tags"><span class="ctag">terminal</span></div></div>
+</div></div>
+
+<div class="card"><div class="card-head" style="margin-bottom:12px">Logging & Tracing</div>
+<div class="crate-grid">
+  <div class="crate-card core"><div class="crate-name">tracing</div><div class="crate-desc">Structured, async-aware logging and diagnostics. The modern replacement for log. Use tracing-subscriber for output.</div><div class="crate-tags"><span class="ctag">logging</span><span class="ctag">async-safe</span></div></div>
+  <div class="crate-card"><div class="crate-name">log + env_logger</div><div class="crate-desc">Simpler logging facade. env_logger reads RUST_LOG=debug env var. Good for smaller projects.</div><div class="crate-tags"><span class="ctag">logging</span><span class="ctag">simple</span></div></div>
+</div></div>
+
+<div class="card"><div class="card-head" style="margin-bottom:12px">Database & Storage</div>
+<div class="crate-grid">
+  <div class="crate-card core"><div class="crate-name">sqlx</div><div class="crate-desc">Async SQL with compile-time query verification. Supports PostgreSQL, MySQL, SQLite. No ORM — write real SQL.</div><div class="crate-tags"><span class="ctag">database</span><span class="ctag">async</span><span class="ctag">type-safe</span></div></div>
+  <div class="crate-card"><div class="crate-name">diesel</div><div class="crate-desc">Full ORM with type-safe query builder. Synchronous. Mature, well-documented, large ecosystem.</div><div class="crate-tags"><span class="ctag">ORM</span><span class="ctag">SQL</span></div></div>
+  <div class="crate-card"><div class="crate-name">redis</div><div class="crate-desc">Redis client with both sync and async support. tokio-friendly.</div><div class="crate-tags"><span class="ctag">redis</span><span class="ctag">cache</span></div></div>
+  <div class="crate-card"><div class="crate-name">sled</div><div class="crate-desc">Embedded key-value store — no external process needed. Fast, ACID-compliant.</div><div class="crate-tags"><span class="ctag">embedded</span><span class="ctag">KV store</span></div></div>
+</div></div>
+
+<div class="card"><div class="card-head" style="margin-bottom:12px">Testing & Benchmarking</div>
+<div class="crate-grid">
+  <div class="crate-card core"><div class="crate-name">criterion</div><div class="crate-desc">Statistical benchmarking. Detects performance regressions. Generates HTML reports. The standard for Rust benchmarks.</div><div class="crate-tags"><span class="ctag">benchmarking</span><span class="ctag">statistics</span></div></div>
+  <div class="crate-card"><div class="crate-name">mockall</div><div class="crate-desc">Automatic mock generation for traits. Powerful expectations and verification.</div><div class="crate-tags"><span class="ctag">mocking</span><span class="ctag">testing</span></div></div>
+  <div class="crate-card"><div class="crate-name">proptest / quickcheck</div><div class="crate-desc">Property-based testing — automatically generate test cases to find edge cases.</div><div class="crate-tags"><span class="ctag">fuzzing</span><span class="ctag">testing</span></div></div>
+  <div class="crate-card"><div class="crate-name">insta</div><div class="crate-desc">Snapshot testing — auto-update expected output. Great for testing complex output formats.</div><div class="crate-tags"><span class="ctag">snapshot</span><span class="ctag">testing</span></div></div>
+</div></div>
+
+<div class="card"><div class="card-head" style="margin-bottom:12px">Utilities & Common</div>
+<div class="crate-grid">
+  <div class="crate-card core"><div class="crate-name">rand</div><div class="crate-desc">Random number generation. thread_rng().gen_range(0..100), random(), shuffle(), and more.</div><div class="crate-tags"><span class="ctag">random</span><span class="ctag">must-have</span></div></div>
+  <div class="crate-card core"><div class="crate-name">regex</div><div class="crate-desc">Compile-safe regular expressions. Fast, zero-copy matches. Always compile Regex once and reuse.</div><div class="crate-tags"><span class="ctag">regex</span><span class="ctag">text</span></div></div>
+  <div class="crate-card"><div class="crate-name">chrono</div><div class="crate-desc">Date and time handling. DateTime, Duration, parsing, formatting, timezones. The standard date library.</div><div class="crate-tags"><span class="ctag">dates</span><span class="ctag">time</span></div></div>
+  <div class="crate-card"><div class="crate-name">uuid</div><div class="crate-desc">UUID generation and parsing. v4 (random), v7 (time-ordered). Serde integration included.</div><div class="crate-tags"><span class="ctag">UUID</span></div></div>
+  <div class="crate-card"><div class="crate-name">once_cell / std::sync::OnceLock</div><div class="crate-desc">Lazy initialization — initialize a static once on first use. once_cell is stable; OnceLock is in stdlib since 1.70.</div><div class="crate-tags"><span class="ctag">lazy</span><span class="ctag">globals</span></div></div>
+  <div class="crate-card"><div class="crate-name">rayon</div><div class="crate-desc">Data parallelism. Drop-in parallel iterators: v.par_iter().map(). Automatically uses all CPU cores.</div><div class="crate-tags"><span class="ctag">parallel</span><span class="ctag">CPU</span></div></div>
+  <div class="crate-card"><div class="crate-name">itertools</div><div class="crate-desc">Extra iterator adapters: combinations, permutations, zip_eq, group_by, chunk_by, and 50+ more.</div><div class="crate-tags"><span class="ctag">iterators</span><span class="ctag">utilities</span></div></div>
+  <div class="crate-card"><div class="crate-name">derive_more</div><div class="crate-desc">Derive macros for common traits: From, Into, Display, Error, Add, Sub, and many more.</div><div class="crate-tags"><span class="ctag">derive</span><span class="ctag">utilities</span></div></div>
+</div></div>
+</div>
+
+<!-- ═══ PATTERNS ═══ -->
+<div class="panel" id="p-patterns">
+<div class="intro">
+  <div class="intro-title">Idioms & Patterns — writing idiomatic Rust</div>
+  <div class="intro-text">Idiomatic Rust avoids common anti-patterns from other languages. These patterns appear constantly in production code. Learning them makes code cleaner, more performant, and more readable to other Rust developers.</div>
+  <span class="tag tag-r">idiomatic code</span><span class="tag tag-b">common patterns</span><span class="tag tag-g">avoid anti-patterns</span>
+</div>
+
+<div class="card"><div class="card-head">Builder pattern</div>
+<div class="desc">Construct complex objects step-by-step without many constructor arguments. Each method returns self for chaining.</div>
+<pre><span class="kw">struct</span> <span class="ty">Request</span> { url: <span class="ty">String</span>, timeout: <span class="ty">u64</span>, retry: <span class="ty">bool</span> }
+<span class="kw">struct</span> <span class="ty">RequestBuilder</span> { url: <span class="ty">String</span>, timeout: <span class="ty">u64</span>, retry: <span class="ty">bool</span> }
+
+<span class="kw">impl</span> <span class="ty">RequestBuilder</span> {
+    <span class="kw">fn</span> new(url: &<span class="ty">str</span>) -> <span class="ty">Self</span> { <span class="ty">Self</span> { url: url.into(), timeout: <span class="num">30</span>, retry: <span class="kw">false</span> } }
+    <span class="kw">fn</span> timeout(<span class="kw">mut</span> self, t: <span class="ty">u64</span>) -> <span class="ty">Self</span> { self.timeout = t; self }
+    <span class="kw">fn</span> retry(<span class="kw">mut</span> self) -> <span class="ty">Self</span> { self.retry = <span class="kw">true</span>; self }
+    <span class="kw">fn</span> build(self) -> <span class="ty">Request</span> { <span class="ty">Request</span> { url: self.url, timeout: self.timeout, retry: self.retry } }
+}
+<span class="kw">let</span> req = <span class="ty">RequestBuilder</span>::new(<span class="st">"https://api.com"</span>).timeout(<span class="num">60</span>).retry().build();</pre></div>
+
+<div class="card"><div class="card-head">Newtype pattern</div>
+<div class="desc">Wrap a primitive in a struct to create a distinct type. Prevents mixing up values of the same underlying type (e.g., Meters vs Kilograms).</div>
+<pre><span class="kw">struct</span> <span class="ty">Meters</span>(<span class="ty">f64</span>);
+<span class="kw">struct</span> <span class="ty">Kilograms</span>(<span class="ty">f64</span>);
+
+<span class="kw">fn</span> calc(dist: <span class="ty">Meters</span>, mass: <span class="ty">Kilograms</span>) { }
+<span class="cm">// calc(Kilograms(5.0), Meters(10.0)); ← compile error! types swapped</span>
+
+<span class="cm">// Also used to implement foreign traits on foreign types:</span>
+<span class="kw">struct</span> <span class="ty">Wrapper</span>(<span class="ty">Vec</span>&lt;<span class="ty">String</span>&gt;);
+<span class="kw">impl</span> std::fmt::<span class="ty">Display</span> <span class="kw">for</span> <span class="ty">Wrapper</span> { <span class="cm">/* implement Display for Vec */</span> }</pre></div>
+
+<div class="card"><div class="card-head">Type-state pattern</div>
+<div class="desc">Encode state in the type system so invalid transitions are compile errors. A connection can't call query() unless it's already Connected.</div>
+<pre><span class="kw">struct</span> <span class="ty">Connected</span>;
+<span class="kw">struct</span> <span class="ty">Disconnected</span>;
+
+<span class="kw">struct</span> <span class="ty">Conn</span>&lt;State&gt; { _state: std::marker::<span class="ty">PhantomData</span>&lt;State&gt; }
+
+<span class="kw">impl</span> <span class="ty">Conn</span>&lt;<span class="ty">Disconnected</span>&gt; {
+    <span class="kw">fn</span> connect(self) -> <span class="ty">Conn</span>&lt;<span class="ty">Connected</span>&gt; { <span class="cm">/* ... */</span> todo!() }
+}
+<span class="kw">impl</span> <span class="ty">Conn</span>&lt;<span class="ty">Connected</span>&gt; {
+    <span class="kw">fn</span> query(&<span class="kw">self</span>) -> <span class="ty">String</span> { todo!() }
+}
+<span class="cm">// Conn&lt;Disconnected&gt;::new().query(); ← compile error!</span></pre></div>
+
+<div class="card"><div class="card-head">Common idioms cheatsheet</div>
+<table class="ct"><tr><th>Anti-pattern</th><th>Idiomatic Rust</th></tr>
+<tr><td>fn f(s: String)</td><td class="mu">fn f(s: &str) — accept borrows, not owned</td></tr>
+<tr><td>v.get(i).unwrap()</td><td class="mu">v.get(i)? or handle None explicitly</td></tr>
+<tr><td>match opt { Some(x) => f(x), None => () }</td><td class="mu">if let Some(x) = opt { f(x) }</td></tr>
+<tr><td>for i in 0..v.len() { v[i] }</td><td class="mu">for item in &v { item } or v.iter()</td></tr>
+<tr><td>v.iter().filter(...).map(...) then collect then filter</td><td class="mu">Chain everything, one .collect() at the end</td></tr>
+<tr><td>HashMap::new() then repeated .insert()</td><td class="mu">.iter().collect() or .entry().or_insert()</td></tr>
+<tr><td>result.unwrap() in library code</td><td class="mu">Return Result with ?, let callers decide</td></tr>
+<tr><td>Clone everywhere to avoid borrow issues</td><td class="mu">Pass references — add Clone only when needed</td></tr>
+<tr><td>pub struct with all pub fields</td><td class="mu">Private fields + constructor fn — preserve invariants</td></tr>
+<tr><td>Regex::new(...) in a loop</td><td class="mu">Compile once with OnceLock or lazy_static</td></tr>
+<tr><td>format!("{}", x.to_string())</td><td class="mu">format!("{}", x) or x.to_string()</td></tr>
+<tr><td>&String as function parameter</td><td class="mu">&str — more general, works for all string data</td></tr>
+<tr><td>&Vec&lt;T&gt; as function parameter</td><td class="mu">&[T] — works for Vec, arrays, slices</td></tr>
+</table></div>
+</div>
+
+</div>
+
+  </main>
+</div>
+<script src="script.js"></script>
+</body>
+</html>

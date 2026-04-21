@@ -1,0 +1,1504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ICP Rust Developer Reference</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-badge">ICP</div>
+      <div>
+        <h1>ICP Rust Ref</h1>
+        <div class="version">ic-cdk 0.17+</div>
+      </div>
+    </div>
+
+    <div class="nav-group-label">Core concepts</div>
+    <button class="nav-btn" data-tab="canisters">Canisters</button>
+    <button class="nav-btn" data-tab="memory">Memory Model</button>
+    <button class="nav-btn" data-tab="threadlocal">thread_local! &amp; RefCell</button>
+    <button class="nav-btn" data-tab="stable">Stable Memory</button>
+    <button class="nav-btn" data-tab="upgrades">Upgrades</button>
+    <button class="nav-btn" data-tab="principals">Principals</button>
+    <button class="nav-btn" data-tab="ii">Internet Identity</button>
+    <button class="nav-btn" data-tab="candid">Candid</button>
+
+    <div class="nav-group-label">Advanced</div>
+    <button class="nav-btn" data-tab="intercall">Inter-canister Calls</button>
+    <button class="nav-btn" data-tab="guards">Guards &amp; Access</button>
+    <button class="nav-btn" data-tab="timers">Timers</button>
+    <button class="nav-btn" data-tab="http">HTTP Outcalls</button>
+    <button class="nav-btn" data-tab="testing">Testing</button>
+
+    <div class="nav-group-label">Tooling</div>
+    <button class="nav-btn" data-tab="dfx">dfx Commands</button>
+    <button class="nav-btn" data-tab="crates">Crates &amp; Cargo</button>
+    <button class="nav-btn" data-tab="project">Project Structure</button>
+
+    <div class="sidebar-footer">
+      Press <code>⌘K</code> to search
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+    <div class="topbar">
+      <button class="mobile-nav-toggle" id="mobile-nav-toggle">☰ Menu</button>
+      <span class="page-title">Canisters</span>
+      <div class="search-wrap">
+        <input type="text" id="search-input" placeholder="Search… (⌘K)">
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         CANISTERS
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-canisters">
+      <div class="intro">
+        <div class="intro-title">Canisters — ICP's smart contract execution units</div>
+        <div class="intro-text">
+          A canister is a WebAssembly module deployed to the Internet Computer. It bundles <strong>code + state</strong> together — unlike stateless lambdas, canisters remember their data between calls. Each canister runs on a subnet of nodes that reach consensus before committing state changes. Canisters communicate via <strong>messages</strong>, not shared memory. The <code>ic_cdk</code> crate provides macros and APIs to write Rust canisters. Every public method is tagged with a macro that determines its message type.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">WebAssembly module</span>
+          <span class="tag tag-b">persistent state</span>
+          <span class="tag tag-g">consensus-based</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Canister entry point macros</div>
+        <table class="ct">
+          <tr><th>Macro</th><th>Type</th><th>State</th><th>Use when</th></tr>
+          <tr><td>#[ic_cdk::query]</td><td class="mu">Query call</td><td class="ok-c">read-only</td><td class="mu">Fast reads — no consensus, returns in milliseconds</td></tr>
+          <tr><td>#[ic_cdk::update]</td><td class="mu">Update call</td><td class="am-c">can mutate</td><td class="mu">Writes — goes through consensus, ~2s</td></tr>
+          <tr><td>#[ic_cdk::init]</td><td class="mu">Initialization</td><td class="am-c">can mutate</td><td class="mu">Runs once on first install only</td></tr>
+          <tr><td>#[ic_cdk::pre_upgrade]</td><td class="mu">Hook</td><td class="mu">read-only</td><td class="mu">Save heap state to stable memory before upgrade</td></tr>
+          <tr><td>#[ic_cdk::post_upgrade]</td><td class="mu">Hook</td><td class="am-c">can mutate</td><td class="mu">Restore state from stable memory after upgrade</td></tr>
+          <tr><td>#[ic_cdk::heartbeat]</td><td class="mu">System</td><td class="am-c">can mutate</td><td class="mu">Called every round (~1s) — for background tasks</td></tr>
+          <tr><td>#[ic_cdk::inspect_message]</td><td class="mu">Filter</td><td class="ok-c">read-only</td><td class="mu">Accept or reject ingress messages before execution</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Minimal canister</div>
+        <pre><span class="cm">// Cargo.toml: ic-cdk = "0.17", candid = "0.10"</span>
+<span class="kw">use</span> std::cell::<span class="ty">RefCell</span>;
+
+<span class="kw">thread_local!</span> {
+    <span class="kw">static</span> COUNT: <span class="ty">RefCell</span>&lt;<span class="ty">u64</span>&gt; = <span class="ty">RefCell</span>::new(0);
+}
+
+<span class="at">#[ic_cdk::init]</span>
+<span class="kw">fn</span> init() {
+    ic_cdk::println!(<span class="st">"Canister initialized!"</span>);
+}
+
+<span class="at">#[ic_cdk::query]</span>
+<span class="kw">fn</span> get_count() -&gt; <span class="ty">u64</span> {
+    COUNT.with(|c| *c.borrow())
+}
+
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">fn</span> increment() {
+    COUNT.with(|c| *c.borrow_mut() += 1);
+}</pre>
+      </div>
+
+      <div class="two">
+        <div class="card">
+          <div class="card-head">Query vs Update</div>
+          <table class="ct">
+            <tr><th></th><th>Query</th><th>Update</th></tr>
+            <tr><td>Consensus</td><td class="ok-c">skipped</td><td class="er-c">required</td></tr>
+            <tr><td>Speed</td><td class="ok-c">~100ms</td><td class="er-c">~2 seconds</td></tr>
+            <tr><td>State writes</td><td class="er-c">discarded</td><td class="ok-c">committed</td></tr>
+            <tr><td>Certified</td><td class="er-c">no</td><td class="ok-c">yes</td></tr>
+            <tr><td>Cycles cost</td><td class="ok-c">lower</td><td class="er-c">higher</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-head">Runtime APIs</div>
+          <pre><span class="cm">// Identity</span>
+ic_cdk::caller()      <span class="cm">// who called</span>
+ic_cdk::id()          <span class="cm">// this canister</span>
+
+<span class="cm">// Cycles</span>
+ic_cdk::api::canister_balance()
+ic_cdk::api::msg_cycles_available()
+ic_cdk::api::msg_cycles_accept(n)
+
+<span class="cm">// Time (nanoseconds)</span>
+ic_cdk::api::time()
+
+<span class="cm">// Abort call &amp; roll back</span>
+ic_cdk::trap(<span class="st">"reason"</span>)</pre>
+        </div>
+      </div>
+
+      <div class="edge">
+        <div class="edge-head">⚠ Key gotchas</div>
+        <ul class="elist">
+          <li><span class="sym">▸</span><span><strong>Queries don't commit writes:</strong> any mutation inside a <code>#[query]</code> is silently discarded. If you need to write, use <code>#[update]</code>.</span></li>
+          <li><span class="sym">▸</span><span><strong>Trapping rolls back state:</strong> if your update call panics or calls <code>ic_cdk::trap()</code>, all state changes in that call are reverted — like a database transaction rollback.</span></li>
+          <li><span class="sym">▸</span><span><strong>No true parallelism:</strong> a canister processes one message at a time. Between <code>await</code> points in async calls, other messages can be interleaved — be careful with state.</span></li>
+          <li><span class="sym">▸</span><span><strong>Heartbeat costs cycles:</strong> <code>#[heartbeat]</code> runs every consensus round and drains your cycle balance. Keep it fast or use timers instead.</span></li>
+          <li><span class="sym">▸</span><span><strong>Composite queries:</strong> since dfx 0.15, queries can call other queries with <code>#[ic_cdk::query(composite = true)]</code> — but they still can't call update methods.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         MEMORY MODEL
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-memory">
+      <div class="intro">
+        <div class="intro-title">Memory Model — heap vs stable memory</div>
+        <div class="intro-text">
+          Canisters have two distinct memory spaces. <strong>Heap memory</strong> is the Wasm linear memory — fast, ergonomic Rust data, but <strong>wiped on upgrade</strong>. <strong>Stable memory</strong> persists across upgrades and is up to 500 GiB. The critical decision for any canister: which data lives where? The wrong choice means losing user data on every deploy.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">two memory spaces</span>
+          <span class="tag tag-b">heap = wiped on upgrade</span>
+          <span class="tag tag-r">stable = persists forever</span>
+        </div>
+      </div>
+
+      <div class="warn"><strong>Critical:</strong> when you upgrade a canister, heap memory is completely wiped. Any data stored only in heap (regular Rust variables, thread_local state) is LOST unless you explicitly serialize it to stable memory in <code>#[pre_upgrade]</code> and restore it in <code>#[post_upgrade]</code>.</div>
+
+      <div class="two">
+        <div class="card">
+          <div class="card-head">Heap memory <span class="badge b-a">wiped on upgrade</span></div>
+          <table class="ct">
+            <tr><th>Property</th><th>Value</th></tr>
+            <tr><td>Max size</td><td class="mu">~4 GiB (Wasm limit)</td></tr>
+            <tr><td>Access speed</td><td class="ok-c">very fast — native memory</td></tr>
+            <tr><td>Survives upgrade</td><td class="er-c">no — wiped</td></tr>
+            <tr><td>Data types</td><td class="mu">Any Rust type</td></tr>
+            <tr><td>Access pattern</td><td class="mu">thread_local! + RefCell</td></tr>
+            <tr><td>Cycles cost</td><td class="mu">cheaper per byte</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-head">Stable memory <span class="badge b-g">persists forever</span></div>
+          <table class="ct">
+            <tr><th>Property</th><th>Value</th></tr>
+            <tr><td>Max size</td><td class="mu">500 GiB</td></tr>
+            <tr><td>Access speed</td><td class="am-c">slower — serialization cost</td></tr>
+            <tr><td>Survives upgrade</td><td class="ok-c">yes — always</td></tr>
+            <tr><td>Data types</td><td class="mu">Storable trait</td></tr>
+            <tr><td>Access pattern</td><td class="mu">StableBTreeMap / StableVec</td></tr>
+            <tr><td>Cycles cost</td><td class="am-c">more expensive per byte</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">The two persistence strategies</div>
+        <table class="ct">
+          <tr><th>Strategy</th><th>How it works</th><th>Trade-off</th></tr>
+          <tr><td>1. Serialize on upgrade</td><td class="mu">Store in heap. In pre_upgrade: serialize → stable. In post_upgrade: deserialize → heap.</td><td class="am-c">Upgrade time grows with data. OOM risk on large datasets.</td></tr>
+          <tr><td>2. Stable structures (recommended)</td><td class="mu">Store all data in StableBTreeMap / StableVec / StableCell directly.</td><td class="ok-c">O(1) upgrades. Slightly more verbose API.</td></tr>
+        </table>
+      </div>
+
+      <div class="edge">
+        <div class="edge-head">⚠ Common mistakes</div>
+        <ul class="elist">
+          <li><span class="sym">▸</span><span><strong>Forgetting pre_upgrade:</strong> no hook + heap-only data = every <code>dfx deploy</code> wipes your data. Always consider upgrade safety from day 1.</span></li>
+          <li><span class="sym">▸</span><span><strong>OOM during serialization:</strong> serializing heap to stable requires both to fit simultaneously. With large datasets, Strategy 2 is mandatory.</span></li>
+          <li><span class="sym">▸</span><span><strong>Raw stable memory API:</strong> <code>ic_cdk::api::stable::stable_read()</code> and <code>stable_write()</code> exist but are low-level. Use ic-stable-structures instead.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         THREAD_LOCAL
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-threadlocal">
+      <div class="intro">
+        <div class="intro-title">thread_local! &amp; RefCell — the canonical canister state pattern</div>
+        <div class="intro-text">
+          Canisters compile to WebAssembly, which has no threads — but Rust's safety rules still apply. Global mutable state normally requires <code>unsafe</code> or <code>Mutex</code>. In canisters, the solution is <strong>thread_local!</strong> combined with <strong>RefCell</strong>. This works because: (1) Wasm is single-threaded so no real thread contention exists, and (2) <code>thread_local!</code> satisfies Rust's borrowing rules for statics without needing <code>Sync</code>. This is the canonical pattern for all mutable canister state.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">canonical state pattern</span>
+          <span class="tag tag-b">single-threaded Wasm</span>
+          <span class="tag tag-g">no Mutex needed</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Why thread_local! is needed</div>
+        <pre><span class="cm">// WRONG — won't compile: RefCell is not Sync</span>
+<span class="kw">static</span> STATE: <span class="ty">RefCell</span>&lt;<span class="ty">u64</span>&gt; = <span class="ty">RefCell</span>::new(0); <span class="cm">// error!</span>
+
+<span class="cm">// WRONG — works but unsafe</span>
+<span class="kw">static mut</span> COUNT: <span class="ty">u64</span> = 0; <span class="cm">// never do this</span>
+
+<span class="cm">// CORRECT — thread_local! wraps in LocalKey, no Sync required</span>
+<span class="kw">thread_local!</span> {
+    <span class="kw">static</span> STATE: <span class="ty">RefCell</span>&lt;<span class="ty">u64</span>&gt; = <span class="ty">RefCell</span>::new(0);
+}
+<span class="cm">// In Wasm there is only one "thread" — this is effectively a safe global</span></pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">The with() / borrow() / borrow_mut() pattern</div>
+        <pre><span class="kw">thread_local!</span> {
+    <span class="kw">static</span> USERS: <span class="ty">RefCell</span>&lt;<span class="ty">HashMap</span>&lt;<span class="ty">u64</span>, <span class="ty">String</span>&gt;&gt; = <span class="ty">RefCell</span>::new(<span class="ty">HashMap</span>::new());
+    <span class="kw">static</span> COUNTER: <span class="ty">RefCell</span>&lt;<span class="ty">u64</span>&gt; = <span class="ty">RefCell</span>::new(0);
+}
+
+<span class="at">#[ic_cdk::query]</span>
+<span class="kw">fn</span> get_user(id: <span class="ty">u64</span>) -&gt; <span class="ty">Option</span>&lt;<span class="ty">String</span>&gt; {
+    USERS.with(|u| u.borrow().get(&amp;id).cloned())
+    <span class="cm">// .with() — closes borrow at end of closure</span>
+}
+
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">fn</span> add_user(id: <span class="ty">u64</span>, name: <span class="ty">String</span>) {
+    USERS.with(|u| { u.borrow_mut().insert(id, name); });
+    COUNTER.with(|c| *c.borrow_mut() += 1);
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Grouping state + helper functions</div>
+        <pre><span class="kw">#[derive(Default)]</span>
+<span class="kw">struct</span> <span class="ty">State</span> {
+    users:  <span class="ty">HashMap</span>&lt;<span class="ty">u64</span>, <span class="ty">User</span>&gt;,
+    admins: <span class="ty">HashSet</span>&lt;<span class="ty">Principal</span>&gt;,
+    config: <span class="ty">Config</span>,
+}
+
+<span class="kw">thread_local!</span> {
+    <span class="kw">static</span> STATE: <span class="ty">RefCell</span>&lt;<span class="ty">State</span>&gt; = <span class="ty">RefCell</span>::new(<span class="ty">State</span>::default());
+}
+
+<span class="cm">// Helper functions — avoids repeating STATE.with(...)</span>
+<span class="kw">fn</span> read_state&lt;R&gt;(f: <span class="kw">impl</span> <span class="ty">FnOnce</span>(&<span class="ty">State</span>) -&gt; R) -&gt; R {
+    STATE.with(|s| f(&amp;s.borrow()))
+}
+<span class="kw">fn</span> mutate_state&lt;R&gt;(f: <span class="kw">impl</span> <span class="ty">FnOnce</span>(&amp;<span class="kw">mut</span> <span class="ty">State</span>) -&gt; R) -&gt; R {
+    STATE.with(|s| f(&amp;<span class="kw">mut</span> s.borrow_mut()))
+}
+
+<span class="at">#[ic_cdk::query]</span>
+<span class="kw">fn</span> is_admin(p: <span class="ty">Principal</span>) -&gt; <span class="ty">bool</span> {
+    read_state(|s| s.admins.contains(&amp;p))
+}</pre>
+      </div>
+
+      <div class="edge">
+        <div class="edge-head">⚠ Borrow panic traps</div>
+        <ul class="elist">
+          <li><span class="sym">▸</span><span><strong>Double borrow panics:</strong> calling <code>borrow_mut()</code> while <code>borrow()</code> is still active panics at runtime. Always close borrows before opening new ones.</span></li>
+          <li><span class="sym">▸</span><span><strong>Borrow across await — the #1 async bug:</strong> holding a <code>Ref</code>/<code>RefMut</code> across an <code>.await</code> point causes a runtime panic. Extract the value first, drop the borrow, then await.</span></li>
+          <li><span class="sym">▸</span><span><strong>Safe async pattern:</strong> <code>let val = STATE.with(|s| s.borrow().field.clone()); /* borrow dropped */ some_future.await; mutate_state(|s| s.other = val);</code></span></li>
+          <li><span class="sym">▸</span><span><strong>Cell&lt;T&gt; for Copy types:</strong> if state is a simple Copy type (u64, bool), use <code>Cell&lt;T&gt;</code> instead of <code>RefCell&lt;T&gt;</code> — no runtime borrow check overhead.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         STABLE MEMORY
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-stable">
+      <div class="intro">
+        <div class="intro-title">Stable Memory — ic-stable-structures</div>
+        <div class="intro-text">
+          The <strong>ic-stable-structures</strong> crate provides B-tree maps, vectors, and cells that live directly in stable memory. No serialization on upgrade — data is always there. The <strong>MemoryManager</strong> virtualizes stable memory into named regions so multiple data structures coexist. Each structure gets a unique <code>MemoryId</code>. This is the modern, recommended approach for any production canister.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">ic-stable-structures</span>
+          <span class="tag tag-b">no upgrade serialization</span>
+          <span class="tag tag-g">up to 500 GiB</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Cargo.toml</div>
+        <pre><span class="sh">[dependencies]</span>
+<span class="shf">ic-cdk</span>              = <span class="st">"0.17"</span>
+<span class="shf">ic-stable-structures</span> = <span class="st">"0.6"</span>
+<span class="shf">candid</span>              = <span class="st">"0.10"</span>
+<span class="shf">serde</span>               = { <span class="shf">version</span> = <span class="st">"1"</span>, <span class="shf">features</span> = [<span class="st">"derive"</span>] }
+
+<span class="sh">[lib]</span>
+<span class="shf">crate-type</span> = [<span class="st">"cdylib"</span>]</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">MemoryManager initialisation</div>
+        <pre><span class="kw">use</span> ic_stable_structures::{
+    memory_manager::{<span class="ty">MemoryId</span>, <span class="ty">MemoryManager</span>, <span class="ty">VirtualMemory</span>},
+    <span class="ty">DefaultMemoryImpl</span>, <span class="ty">StableBTreeMap</span>, <span class="ty">StableCell</span>, <span class="ty">StableVec</span>,
+};
+<span class="kw">use</span> std::cell::<span class="ty">RefCell</span>;
+
+<span class="kw">type</span> <span class="ty">Memory</span> = <span class="ty">VirtualMemory</span>&lt;<span class="ty">DefaultMemoryImpl</span>&gt;;
+
+<span class="cm">// Each structure gets a unique MemoryId (0–254)</span>
+<span class="kw">const</span> USERS_MEM:  <span class="ty">MemoryId</span> = <span class="ty">MemoryId</span>::new(0);
+<span class="kw">const</span> CONFIG_MEM: <span class="ty">MemoryId</span> = <span class="ty">MemoryId</span>::new(1);
+<span class="kw">const</span> LOGS_MEM:   <span class="ty">MemoryId</span> = <span class="ty">MemoryId</span>::new(2);
+
+<span class="kw">thread_local!</span> {
+    <span class="cm">// Always initialize MemoryManager first</span>
+    <span class="kw">static</span> MM: <span class="ty">RefCell</span>&lt;<span class="ty">MemoryManager</span>&lt;<span class="ty">DefaultMemoryImpl</span>&gt;&gt; =
+        <span class="ty">RefCell</span>::new(<span class="ty">MemoryManager</span>::init(<span class="ty">DefaultMemoryImpl</span>::default()));
+
+    <span class="cm">// Use ::init() NOT ::new() — init() opens existing stable data on upgrade</span>
+    <span class="kw">static</span> USERS: <span class="ty">RefCell</span>&lt;<span class="ty">StableBTreeMap</span>&lt;<span class="ty">u64</span>, <span class="ty">UserData</span>, <span class="ty">Memory</span>&gt;&gt; =
+        <span class="ty">RefCell</span>::new(<span class="ty">StableBTreeMap</span>::init(
+            MM.with(|m| m.borrow().get(USERS_MEM))
+        ));
+
+    <span class="kw">static</span> CONFIG: <span class="ty">RefCell</span>&lt;<span class="ty">StableCell</span>&lt;<span class="ty">Config</span>, <span class="ty">Memory</span>&gt;&gt; =
+        <span class="ty">RefCell</span>::new(<span class="ty">StableCell</span>::init(
+            MM.with(|m| m.borrow().get(CONFIG_MEM)),
+            <span class="ty">Config</span>::default(),
+        ).unwrap());
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Implementing Storable for custom types</div>
+        <pre><span class="kw">use</span> ic_stable_structures::storable::{<span class="ty">Bound</span>, <span class="ty">Storable</span>};
+<span class="kw">use</span> std::borrow::<span class="ty">Cow</span>;
+<span class="kw">use</span> candid::{<span class="ty">CandidType</span>, <span class="ty">Decode</span>, <span class="ty">Encode</span>};
+
+<span class="kw">#[derive(CandidType, serde::Deserialize, Clone)]</span>
+<span class="kw">struct</span> <span class="ty">UserData</span> {
+    name:       <span class="ty">String</span>,
+    balance:    <span class="ty">u64</span>,
+    created_at: <span class="ty">u64</span>,
+}
+
+<span class="kw">impl</span> <span class="ty">Storable</span> <span class="kw">for</span> <span class="ty">UserData</span> {
+    <span class="kw">fn</span> to_bytes(&amp;<span class="kw">self</span>) -&gt; <span class="ty">Cow</span>&lt;[<span class="ty">u8</span>]&gt; {
+        <span class="ty">Cow</span>::Owned(<span class="ty">Encode!</span>(self).unwrap())   <span class="cm">// Candid encoding</span>
+    }
+    <span class="kw">fn</span> from_bytes(bytes: <span class="ty">Cow</span>&lt;[<span class="ty">u8</span>]&gt;) -&gt; <span class="ty">Self</span> {
+        <span class="ty">Decode!</span>(bytes.as_ref(), <span class="ty">UserData</span>).unwrap()
+    }
+    <span class="cm">// Unbounded = variable size (strings, nested types)</span>
+    <span class="cm">// Bounded { max_size: N, is_fixed_size } = for u64, [u8;32] etc.</span>
+    <span class="kw">const</span> BOUND: <span class="ty">Bound</span> = <span class="ty">Bound</span>::Unbounded;
+}
+
+<span class="cm">// u64 keys are Storable out of the box — no impl needed</span></pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">StableBTreeMap — full API</div>
+        <pre><span class="cm">// Insert (returns old value if key existed)</span>
+USERS.with(|u| u.borrow_mut().insert(id, user_data));
+
+<span class="cm">// Get (returns owned value, not a reference)</span>
+<span class="kw">let</span> user = USERS.with(|u| u.borrow().get(&amp;id));  <span class="cm">// Option&lt;UserData&gt;</span>
+
+<span class="cm">// Remove</span>
+USERS.with(|u| u.borrow_mut().remove(&amp;id));
+
+<span class="cm">// Contains</span>
+USERS.with(|u| u.borrow().contains_key(&amp;id));
+
+<span class="cm">// Length</span>
+USERS.with(|u| u.borrow().len());
+
+<span class="cm">// Iterate all — keys are sorted</span>
+USERS.with(|u| {
+    u.borrow().iter().map(|(id, data)| data.name.clone()).collect::&lt;<span class="ty">Vec</span>&lt;_&gt;&gt;()
+});
+
+<span class="cm">// Range query by key</span>
+USERS.with(|u| {
+    u.borrow().range(100..=200).collect::&lt;<span class="ty">Vec</span>&lt;_&gt;&gt;()
+});
+
+<span class="cm">// Pagination</span>
+USERS.with(|u| {
+    u.borrow().iter()
+        .skip(offset <span class="kw">as</span> <span class="ty">usize</span>)
+        .take(limit <span class="kw">as</span> <span class="ty">usize</span>)
+        .collect::&lt;<span class="ty">Vec</span>&lt;_&gt;&gt;()
+});</pre>
+      </div>
+
+      <div class="two">
+        <div class="card">
+          <div class="card-head">StableCell — single value store</div>
+          <pre><span class="cm">// Read</span>
+<span class="kw">let</span> cfg = CONFIG.with(|c| c.borrow().get().clone());
+
+<span class="cm">// Write</span>
+CONFIG.with(|c| {
+    c.borrow_mut()
+        .set(<span class="ty">Config</span> { version: 2, .. cfg })
+        .unwrap();
+});</pre>
+        </div>
+        <div class="card">
+          <div class="card-head">StableVec — ordered list</div>
+          <pre><span class="cm">// Append</span>
+LOGS.with(|l| l.borrow_mut().push(&amp;entry).unwrap());
+
+<span class="cm">// Read by index</span>
+LOGS.with(|l| l.borrow().get(0));
+
+<span class="cm">// Length</span>
+LOGS.with(|l| l.borrow().len());
+
+<span class="cm">// Pop last</span>
+LOGS.with(|l| l.borrow_mut().pop());</pre>
+        </div>
+      </div>
+
+      <div class="edge">
+        <div class="edge-head">⚠ Stable structures gotchas</div>
+        <ul class="elist">
+          <li><span class="sym">▸</span><span><strong>Never change MemoryIds:</strong> once a MemoryId is used and data is written, it's permanent. Changing it corrupts data — the memory manager won't find it.</span></li>
+          <li><span class="sym">▸</span><span><strong>init() vs new():</strong> always use <code>::init()</code> in <code>thread_local!</code>. <code>::new()</code> wipes existing data on every canister restart.</span></li>
+          <li><span class="sym">▸</span><span><strong>StableBTreeMap returns owned values:</strong> unlike HashMap, <code>.get()</code> returns a cloned <code>T</code>, not a reference — because the data lives in stable memory, not Rust's heap.</span></li>
+          <li><span class="sym">▸</span><span><strong>Use Bound::Bounded for fixed-size types:</strong> u64, Principal, [u8;32] — mark them as Bounded for BTree node optimization.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         UPGRADES
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-upgrades">
+      <div class="intro">
+        <div class="intro-title">Upgrades — surviving code deployments</div>
+        <div class="intro-text">
+          Every <code>dfx deploy</code> on an existing canister performs an upgrade. The Wasm module is replaced, stable memory survives, heap memory does not. Sequence: <strong>#[pre_upgrade]</strong> runs → Wasm replaced → <strong>#[post_upgrade]</strong> runs. With ic-stable-structures, no serialize/deserialize hooks are needed for data persistence.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">pre/post upgrade hooks</span>
+          <span class="tag tag-b">stable memory survives</span>
+          <span class="tag tag-r">heap is wiped</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Upgrade lifecycle</div>
+        <table class="ct">
+          <tr><th>Phase</th><th>What happens</th><th>Stable memory</th><th>Heap</th></tr>
+          <tr><td>1. pre_upgrade runs</td><td class="mu">Old code's hook — serialize heap if needed</td><td class="ok-c">writable</td><td class="ok-c">still alive</td></tr>
+          <tr><td>2. Wasm replaced</td><td class="mu">New module installed by IC</td><td class="ok-c">preserved</td><td class="er-c">wiped</td></tr>
+          <tr><td>3. post_upgrade runs</td><td class="mu">New code's hook — restore from stable</td><td class="ok-c">readable</td><td class="am-c">being rebuilt</td></tr>
+          <tr><td>4. Canister online</td><td class="mu">Accepting new messages</td><td class="ok-c">preserved</td><td class="ok-c">restored</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Strategy 1 — serialize heap state (legacy)</div>
+        <pre><span class="kw">use</span> ic_cdk::storage;
+
+<span class="at">#[ic_cdk::pre_upgrade]</span>
+<span class="kw">fn</span> pre_upgrade() {
+    <span class="kw">let</span> state = STATE.with(|s| s.borrow().clone());
+    storage::stable_save((state,)).expect(<span class="st">"Failed to save state"</span>);
+}
+
+<span class="at">#[ic_cdk::post_upgrade]</span>
+<span class="kw">fn</span> post_upgrade() {
+    <span class="kw">let</span> (state,): (<span class="ty">MyState</span>,) =
+        storage::stable_restore().expect(<span class="st">"Failed to restore state"</span>);
+    STATE.with(|s| *s.borrow_mut() = state);
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Strategy 2 — stable structures (recommended)</div>
+        <pre><span class="cm">// No pre_upgrade / post_upgrade needed for data persistence!
+// StableBTreeMap, StableVec, StableCell survive automatically.
+
+// You may still need post_upgrade for schema migrations:</span>
+<span class="at">#[ic_cdk::post_upgrade]</span>
+<span class="kw">fn</span> post_upgrade() {
+    <span class="kw">let</span> version = CONFIG.with(|c| c.borrow().get().schema_version);
+    <span class="kw">if</span> version &lt; 2 {
+        migrate_v1_to_v2();
+        CONFIG.with(|c| {
+            <span class="kw">let mut</span> cfg = c.borrow().get().clone();
+            cfg.schema_version = 2;
+            c.borrow_mut().set(cfg).unwrap();
+        });
+    }
+    <span class="cm">// Re-register timers (heap-side, reset on upgrade)</span>
+    start_background_timer();
+}</pre>
+      </div>
+
+      <div class="edge">
+        <div class="edge-head">⚠ Upgrade safety rules</div>
+        <ul class="elist">
+          <li><span class="sym">▸</span><span><strong>pre_upgrade can trap safely:</strong> if pre_upgrade panics, the upgrade is aborted and the old canister keeps running. Make it robust.</span></li>
+          <li><span class="sym">▸</span><span><strong>post_upgrade trap = bricked canister:</strong> if post_upgrade panics, the upgrade completes but the canister can't process any messages. Always test upgrades on testnets first.</span></li>
+          <li><span class="sym">▸</span><span><strong>Candid interface backwards compatibility:</strong> you can add new optional fields and methods, but removing or changing existing signatures breaks callers.</span></li>
+          <li><span class="sym">▸</span><span><strong>Test with pocket-ic:</strong> simulate upgrades in tests and verify state survives before deploying to mainnet.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         PRINCIPALS
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-principals">
+      <div class="intro">
+        <div class="intro-title">Principals — ICP's universal identity</div>
+        <div class="intro-text">
+          A Principal is ICP's universal identifier — it identifies users, canisters, subnets, and nodes. Principals are 29-byte blobs encoded in a human-readable base32 format like <code>rrkah-fqaaa-aaaaa-aaaaq-cai</code>. Every canister call has an associated caller Principal. The <strong>anonymous Principal</strong> represents unauthenticated callers. Internet Identity creates <strong>derived Principals</strong> that are unique per dApp.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">universal identity</span>
+          <span class="tag tag-b">users + canisters</span>
+          <span class="tag tag-g">self-authenticating</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Principal types</div>
+        <table class="ct">
+          <tr><th>Type</th><th>Represents</th><th>Notes</th></tr>
+          <tr><td>Self-authenticating</td><td class="mu">Users with a key pair (II, Plug, dfx identity)</td><td class="mu">SHA-224 of public key + 0x02</td></tr>
+          <tr><td>Opaque (canister)</td><td class="mu">Canisters, subnets, nodes</td><td class="mu">e.g. rrkah-fqaaa-aaaaa-aaaaq-cai</td></tr>
+          <tr><td>Anonymous</td><td class="mu">Unauthenticated HTTP callers</td><td class="mu">2vxsx-fae — always check and reject</td></tr>
+          <tr><td>Derived</td><td class="mu">App-specific identity from Internet Identity</td><td class="mu">Unique per dApp — different on every site</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Working with Principals in Rust</div>
+        <pre><span class="kw">use</span> candid::<span class="ty">Principal</span>;
+
+<span class="cm">// Get caller — most common operation</span>
+<span class="kw">let</span> caller: <span class="ty">Principal</span> = ic_cdk::caller();
+
+<span class="cm">// Get this canister's own principal</span>
+<span class="kw">let</span> self_id: <span class="ty">Principal</span> = ic_cdk::id();
+
+<span class="cm">// Check anonymous</span>
+<span class="kw">if</span> caller == <span class="ty">Principal</span>::anonymous() {
+    ic_cdk::trap(<span class="st">"anonymous callers not allowed"</span>);
+}
+
+<span class="cm">// Parse from text</span>
+<span class="kw">let</span> p = <span class="ty">Principal</span>::from_text(<span class="st">"rrkah-fqaaa-aaaaa-aaaaq-cai"</span>).unwrap();
+
+<span class="cm">// Convert to/from bytes</span>
+<span class="kw">let</span> bytes = caller.as_slice();
+<span class="kw">let</span> p = <span class="ty">Principal</span>::from_slice(bytes);
+
+<span class="cm">// Text representation</span>
+<span class="kw">let</span> text = caller.to_text();
+
+<span class="cm">// Equality comparison</span>
+<span class="kw">if</span> caller == expected_admin { <span class="cm">/* ... */</span> }
+
+<span class="cm">// Management canister</span>
+<span class="ty">Principal</span>::management_canister()</pre>
+      </div>
+
+      <div class="two">
+        <div class="card">
+          <div class="card-head">Storing Principals</div>
+          <pre><span class="cm">// Principal implements Storable — works directly
+// in StableBTreeMap as key or value</span>
+<span class="kw">type</span> <span class="ty">Allowlist</span> = <span class="ty">StableBTreeMap</span>&lt;<span class="ty">Principal</span>, (), <span class="ty">Memory</span>&gt;;
+
+<span class="cm">// In heap state</span>
+<span class="kw">struct</span> <span class="ty">State</span> {
+    admins: <span class="ty">HashSet</span>&lt;<span class="ty">Principal</span>&gt;,
+    owner:  <span class="ty">Principal</span>,
+}
+
+<span class="cm">// In Candid-serialized structs</span>
+<span class="kw">#[derive(CandidType, serde::Deserialize)]</span>
+<span class="kw">struct</span> <span class="ty">UserRecord</span> {
+    principal: <span class="ty">Principal</span>,
+    name:      <span class="ty">String</span>,
+}</pre>
+        </div>
+        <div class="card">
+          <div class="card-head">Subaccount from Principal</div>
+          <pre><span class="cm">// Common in ICRC-1 token integration</span>
+<span class="kw">fn</span> principal_to_subaccount(p: &amp;<span class="ty">Principal</span>) -&gt; [<span class="ty">u8</span>; 32] {
+    <span class="kw">let</span> bytes = p.as_slice();
+    <span class="kw">let mut</span> sub = [0u8; 32];
+    <span class="cm">// First byte = length of principal bytes</span>
+    sub[0] = bytes.len() <span class="kw">as</span> <span class="ty">u8</span>;
+    sub[1..bytes.len()+1].copy_from_slice(bytes);
+    sub
+}
+
+<span class="cm">// ICRC-1 Account type</span>
+<span class="kw">use</span> icrc_ledger_types::icrc1::account::<span class="ty">Account</span>;
+<span class="kw">let</span> account = <span class="ty">Account</span> {
+    owner:      caller,
+    subaccount: None,
+};</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         INTERNET IDENTITY
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-ii">
+      <div class="intro">
+        <div class="intro-title">Internet Identity — decentralized authentication</div>
+        <div class="intro-text">
+          Internet Identity (II) uses <strong>WebAuthn</strong> (device biometrics, passkeys, hardware keys) to authenticate users — no passwords, no seed phrases. II creates a <strong>different derived Principal for each dApp</strong>, preventing cross-app tracking. The frontend integrates via <code>@dfinity/auth-client</code>. Your backend canister receives the app-specific Principal via <code>ic_cdk::caller()</code> and doesn't interact with II directly.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">WebAuthn / passkeys</span>
+          <span class="tag tag-b">per-app derived IDs</span>
+          <span class="tag tag-g">no passwords</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">How II authentication works</div>
+        <table class="ct">
+          <tr><th>Step</th><th>What happens</th><th>Who does it</th></tr>
+          <tr><td>1. User visits dApp</td><td class="mu">Frontend loads, calls II canister</td><td class="mu">Frontend JS</td></tr>
+          <tr><td>2. II popup opens</td><td class="mu">User authenticates with device biometric or security key</td><td class="mu">II canister + device</td></tr>
+          <tr><td>3. Delegation created</td><td class="mu">II creates a delegation for a session key, scoped to this dApp's origin</td><td class="mu">II canister</td></tr>
+          <tr><td>4. Derived Principal</td><td class="mu">Session key derives a unique Principal for this dApp</td><td class="mu">auth-client SDK</td></tr>
+          <tr><td>5. Signed calls</td><td class="mu">All canister calls are signed with the session key</td><td class="mu">auth-client SDK</td></tr>
+          <tr><td>6. Backend sees caller</td><td class="mu">ic_cdk::caller() returns the dApp-specific derived Principal</td><td class="mu">Your canister</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Backend canister — receiving authenticated calls</div>
+        <pre><span class="cm">// Your canister just reads ic_cdk::caller()
+// It never interacts with II directly</span>
+
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">fn</span> create_profile(name: <span class="ty">String</span>) -&gt; <span class="ty">Result</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; {
+    <span class="kw">let</span> caller = ic_cdk::caller();
+
+    <span class="cm">// Always reject anonymous callers for write operations</span>
+    <span class="kw">if</span> caller == <span class="ty">Principal</span>::anonymous() {
+        <span class="kw">return</span> <span class="ty">Err</span>(<span class="st">"must be authenticated via Internet Identity"</span>.to_string());
+    }
+
+    <span class="cm">// The principal IS the user's stable identity for this dApp
+    // Same user + same II anchor + same dApp origin = same principal always</span>
+    PROFILES.with(|p| {
+        p.borrow_mut().insert(caller, <span class="ty">Profile</span> {
+            name,
+            created_at: ic_cdk::api::time(),
+        });
+    });
+    <span class="ty">Ok</span>(<span class="st">"profile created"</span>.to_string())
+}
+
+<span class="at">#[ic_cdk::query]</span>
+<span class="kw">fn</span> get_my_profile() -&gt; <span class="ty">Option</span>&lt;<span class="ty">Profile</span>&gt; {
+    PROFILES.with(|p| p.borrow().get(&amp;ic_cdk::caller()))
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Authentication options</div>
+        <table class="ct">
+          <tr><th>Provider</th><th>Principal type</th><th>Notes</th></tr>
+          <tr><td>Internet Identity</td><td class="mu">Derived per dApp</td><td class="mu">Native ICP — passkeys, WebAuthn, Yubikey. Privacy-preserving.</td></tr>
+          <tr><td>NFID</td><td class="mu">Derived (II-based)</td><td class="mu">II-compatible + Google sign-in. Same interface as II.</td></tr>
+          <tr><td>Plug Wallet</td><td class="mu">Self-authenticating</td><td class="mu">Browser extension — same principal across all dApps. Holds ICP tokens.</td></tr>
+          <tr><td>Stoic Wallet</td><td class="mu">Self-authenticating</td><td class="mu">Web-based — mnemonic-based. Same principal across dApps.</td></tr>
+          <tr><td>dfx identity</td><td class="mu">Self-authenticating</td><td class="mu">Ed25519 key pair — local dev and admin scripts.</td></tr>
+        </table>
+      </div>
+
+      <div class="edge">
+        <div class="edge-head">⚠ Key facts for backend developers</div>
+        <ul class="elist">
+          <li><span class="sym">▸</span><span><strong>Same user, different dApps = different principals:</strong> a user's II principal on dapp-a.ic0.app differs from dapp-b.ic0.app. You cannot cross-reference users across dApps.</span></li>
+          <li><span class="sym">▸</span><span><strong>Same user, same dApp = same principal:</strong> the derived principal is stable across sessions for the same II anchor + same dApp origin. Reliable for user records.</span></li>
+          <li><span class="sym">▸</span><span><strong>Delegation has an expiry:</strong> II delegations expire (typically 30 minutes to 30 days). After expiry, the user must re-authenticate. This is handled on the frontend — your canister sees nothing.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         CANDID
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-candid">
+      <div class="intro">
+        <div class="intro-title">Candid — ICP's interface description language</div>
+        <div class="intro-text">
+          Candid is ICP's IDL — it defines canister interfaces in a language-neutral format, similar to Protobuf. Every public endpoint is described in a <code>.did</code> file. Candid handles serialization of arguments between canisters and frontends. The <code>candid</code> Rust crate provides <code>CandidType</code> derive macros and encoding/decoding functions.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">language-agnostic IDL</span>
+          <span class="tag tag-b">type-safe inter-canister</span>
+          <span class="tag tag-g">auto-generated .did</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Candid ↔ Rust type mappings</div>
+        <table class="ct">
+          <tr><th>Candid</th><th>Rust</th><th>Notes</th></tr>
+          <tr><td>nat / int</td><td class="mu">candid::Nat / candid::Int</td><td class="mu">Arbitrary precision integers</td></tr>
+          <tr><td>nat8..nat64</td><td class="mu">u8..u64</td><td class="mu">Direct mapping</td></tr>
+          <tr><td>int8..int64</td><td class="mu">i8..i64</td><td class="mu">Direct mapping</td></tr>
+          <tr><td>float32 / float64</td><td class="mu">f32 / f64</td><td class="mu">IEEE 754</td></tr>
+          <tr><td>bool</td><td class="mu">bool</td><td class="mu">Direct mapping</td></tr>
+          <tr><td>text</td><td class="mu">String / &amp;str</td><td class="mu">UTF-8</td></tr>
+          <tr><td>blob</td><td class="mu">Vec&lt;u8&gt;</td><td class="mu">Byte array</td></tr>
+          <tr><td>null</td><td class="mu">()</td><td class="mu">Unit type</td></tr>
+          <tr><td>opt T</td><td class="mu">Option&lt;T&gt;</td><td class="mu">Optional value</td></tr>
+          <tr><td>vec T</td><td class="mu">Vec&lt;T&gt;</td><td class="mu">List</td></tr>
+          <tr><td>record { … }</td><td class="mu">struct with #[derive(CandidType)]</td><td class="mu">Named fields</td></tr>
+          <tr><td>variant { A; B(T) }</td><td class="mu">enum with #[derive(CandidType)]</td><td class="mu">Sum type / discriminated union</td></tr>
+          <tr><td>principal</td><td class="mu">candid::Principal</td><td class="mu">Principal ID</td></tr>
+        </table>
+      </div>
+
+      <div class="two">
+        <div class="card">
+          <div class="card-head">Deriving CandidType</div>
+          <pre><span class="kw">use</span> candid::<span class="ty">CandidType</span>;
+
+<span class="cm">// Structs used as args need BOTH</span>
+<span class="kw">#[derive(CandidType, serde::Deserialize, Clone)]</span>
+<span class="kw">struct</span> <span class="ty">TransferArgs</span> {
+    to:     <span class="ty">Principal</span>,
+    amount: <span class="ty">u64</span>,
+    memo:   <span class="ty">Option</span>&lt;<span class="ty">String</span>&gt;,
+}
+
+<span class="kw">#[derive(CandidType, serde::Deserialize)]</span>
+<span class="kw">enum</span> <span class="ty">TransferResult</span> {
+    Ok(<span class="ty">u64</span>),
+    Err(<span class="ty">TransferError</span>),
+}
+
+<span class="kw">#[derive(CandidType, serde::Deserialize)]</span>
+<span class="kw">enum</span> <span class="ty">TransferError</span> {
+    InsufficientFunds { balance: <span class="ty">u64</span> },
+    Unauthorized,
+}</pre>
+        </div>
+        <div class="card">
+          <div class="card-head">The .did file</div>
+          <pre><span class="cm">// src/my_canister.did</span>
+<span class="kw">type</span> TransferArgs = record {
+    to: principal;
+    amount: nat64;
+    memo: opt text;
+};
+<span class="kw">type</span> TransferResult = variant {
+    Ok: nat64;
+    Err: TransferError;
+};
+<span class="kw">type</span> TransferError = variant {
+    InsufficientFunds: record { balance: nat64 };
+    Unauthorized;
+};
+<span class="kw">service</span> : {
+    transfer: (TransferArgs) -&gt; (TransferResult);
+    get_balance: (principal) -&gt; (nat64) query;
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Auto-generate .did from Rust</div>
+        <pre><span class="cm">// In lib.rs — export candid interface</span>
+candid::export_service!();
+
+<span class="at">#[cfg(test)]</span>
+<span class="kw">mod</span> candid_tests {
+    <span class="kw">use super</span>::*;
+    <span class="at">#[test]</span>
+    <span class="kw">fn</span> save_candid() {
+        <span class="kw">use</span> std::env;
+        <span class="kw">use</span> std::fs::write;
+        <span class="kw">let</span> dir = env::var(<span class="st">"CARGO_MANIFEST_DIR"</span>).unwrap();
+        write(format!(<span class="st">"{dir}/my_canister.did"</span>), __export_service()).unwrap();
+    }
+}
+<span class="cm">// cargo test save_candid  → regenerates the .did file</span></pre>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         INTER-CANISTER CALLS
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-intercall">
+      <div class="intro">
+        <div class="intro-title">Inter-canister Calls — async messaging between canisters</div>
+        <div class="intro-text">
+          Canisters communicate by sending messages to each other. Calls are <strong>asynchronous</strong> — when canister A calls canister B, A suspends at the <code>await</code> point and other messages can arrive. This creates <strong>reentrancy risk</strong>: state can change between your check and your write. The solution: update state <em>before</em> awaiting, restore on failure (Checks-Effects-Interactions pattern).
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">async message passing</span>
+          <span class="tag tag-r">reentrancy risk</span>
+          <span class="tag tag-b">awaits enable interleaving</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Making a call to another canister</div>
+        <pre><span class="kw">use</span> candid::<span class="ty">Principal</span>;
+<span class="kw">use</span> ic_cdk::call;
+
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">async fn</span> transfer_and_notify(to: <span class="ty">Principal</span>, amount: <span class="ty">u64</span>) -&gt; <span class="ty">String</span> {
+    <span class="kw">let</span> ledger = <span class="ty">Principal</span>::from_text(<span class="st">"ryjl3-tyaaa-aaaaa-aaaba-cai"</span>).unwrap();
+
+    <span class="cm">// Args must be a tuple, even for a single argument</span>
+    <span class="kw">let</span> (block_index,): (<span class="ty">u64</span>,) =
+        call(ledger, <span class="st">"icrc1_transfer"</span>, (<span class="ty">TransferArgs</span> { to, amount },))
+            .await
+            .expect(<span class="st">"Transfer call failed"</span>);
+
+    format!(<span class="st">"Transferred in block {block_index}"</span>)
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Reentrancy — the #1 inter-canister bug</div>
+        <pre><span class="cm">// DANGEROUS — state can change between check and deduct</span>
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">async fn</span> withdraw_bad(amount: <span class="ty">u64</span>) {
+    <span class="kw">let</span> bal = BALANCE.with(|b| *b.borrow());
+    <span class="kw">if</span> bal &lt; amount { ic_cdk::trap(<span class="st">"insufficient"</span>); }
+    <span class="cm">// ← another message could arrive here and also pass the check!</span>
+    call(ledger, <span class="st">"transfer"</span>, (amount,)).await.unwrap();  <span class="cm">// suspends</span>
+    BALANCE.with(|b| *b.borrow_mut() -= amount);  <span class="cm">// DOUBLE SPEND!</span>
+}
+
+<span class="cm">// SAFE — Checks-Effects-Interactions pattern</span>
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">async fn</span> withdraw_safe(amount: <span class="ty">u64</span>) {
+    <span class="cm">// 1. Deduct BEFORE the await</span>
+    BALANCE.with(|b| {
+        <span class="kw">let mut</span> b = b.borrow_mut();
+        <span class="kw">if</span> *b &lt; amount { ic_cdk::trap(<span class="st">"insufficient"</span>); }
+        *b -= amount;  <span class="cm">// state updated atomically before await</span>
+    });
+    <span class="cm">// 2. External call — other messages see updated balance</span>
+    <span class="kw">let</span> result = call(ledger, <span class="st">"transfer"</span>, (amount,)).await;
+    <span class="cm">// 3. Restore on failure</span>
+    <span class="kw">if</span> result.is_err() {
+        BALANCE.with(|b| *b.borrow_mut() += amount);
+        ic_cdk::trap(<span class="st">"transfer failed, balance restored"</span>);
+    }
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Call API reference</div>
+        <table class="ct">
+          <tr><th>Method</th><th>Use when</th><th>Notes</th></tr>
+          <tr><td>ic_cdk::call(can, method, args)</td><td class="mu">Standard cross-canister call</td><td class="mu">Auto Candid encoding, returns Result</td></tr>
+          <tr><td>ic_cdk::call_raw(can, method, bytes, cycles)</td><td class="mu">Raw bytes — dynamic calls</td><td class="mu">Manual Candid encoding</td></tr>
+          <tr><td>ic_cdk::notify(can, method, args)</td><td class="mu">Fire-and-forget</td><td class="mu">No await, no response</td></tr>
+          <tr><td>ic_cdk::api::call::msg_cycles_add(n)</td><td class="mu">Attach cycles to outgoing call</td><td class="mu">Call before the ic_cdk::call()</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         GUARDS
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-guards">
+      <div class="intro">
+        <div class="intro-title">Guards &amp; Access Control — protecting canister methods</div>
+        <div class="intro-text">
+          Canisters receive calls from anyone on the internet. Access control is your responsibility — the IC does not enforce it. Common patterns: <strong>caller guards</strong> (specific principals only), <strong>admin pattern</strong> (configurable admin set), <strong>owner pattern</strong> (set once at init), and <strong>inspect_message</strong> (reject calls before execution to save cycles).
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">explicit access control</span>
+          <span class="tag tag-b">trap to reject</span>
+          <span class="tag tag-g">inspect_message filter</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Guard functions</div>
+        <pre><span class="kw">fn</span> require_authenticated() {
+    <span class="kw">if</span> ic_cdk::caller() == <span class="ty">Principal</span>::anonymous() {
+        ic_cdk::trap(<span class="st">"authentication required"</span>);
+    }
+}
+
+<span class="kw">fn</span> require_admin() {
+    <span class="kw">let</span> caller = ic_cdk::caller();
+    <span class="kw">let</span> is_admin = read_state(|s| s.admins.contains(&amp;caller));
+    <span class="kw">if</span> !is_admin { ic_cdk::trap(<span class="st">"caller is not an admin"</span>); }
+}
+
+<span class="kw">fn</span> require_self() {  <span class="cm">// only canister itself can call</span>
+    <span class="kw">if</span> ic_cdk::caller() != ic_cdk::id() {
+        ic_cdk::trap(<span class="st">"only the canister itself can call this"</span>);
+    }
+}
+
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">fn</span> admin_only_action(data: <span class="ty">String</span>) {
+    require_admin();  <span class="cm">// traps + rolls back if not admin</span>
+    <span class="cm">// ... rest of logic</span>
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Admin management pattern</div>
+        <pre><span class="at">#[ic_cdk::init]</span>
+<span class="kw">fn</span> init() {
+    <span class="cm">// Deployer becomes initial admin</span>
+    mutate_state(|s| { s.admins.insert(ic_cdk::caller()); });
+}
+
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">fn</span> add_admin(new_admin: <span class="ty">Principal</span>) {
+    require_admin();
+    mutate_state(|s| { s.admins.insert(new_admin); });
+}
+
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">fn</span> remove_admin(admin: <span class="ty">Principal</span>) {
+    require_admin();
+    <span class="kw">if</span> admin == ic_cdk::caller() {
+        ic_cdk::trap(<span class="st">"cannot remove yourself"</span>);
+    }
+    mutate_state(|s| { s.admins.remove(&amp;admin); });
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">inspect_message — pre-filter to save cycles</div>
+        <pre><span class="cm">// Runs BEFORE update calls — read-only, can only accept or reject</span>
+<span class="at">#[ic_cdk::inspect_message]</span>
+<span class="kw">fn</span> inspect_message() {
+    <span class="kw">let</span> method = ic_cdk::api::call::method_name();
+    <span class="kw">let</span> caller = ic_cdk::caller();
+
+    <span class="cm">// Block anonymous callers from all write methods</span>
+    <span class="kw">if</span> caller == <span class="ty">Principal</span>::anonymous() {
+        <span class="kw">return</span>;  <span class="cm">// implicit reject — never call accept_message()</span>
+    }
+
+    <span class="cm">// Only admins can call admin_ methods</span>
+    <span class="kw">if</span> method.starts_with(<span class="st">"admin_"</span>) {
+        <span class="kw">let</span> is_admin = read_state(|s| s.admins.contains(&amp;caller));
+        <span class="kw">if</span> !is_admin { <span class="kw">return</span>; }  <span class="cm">// reject</span>
+    }
+
+    ic_cdk::api::call::accept_message();  <span class="cm">// MUST explicitly accept!</span>
+}</pre>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         TIMERS
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-timers">
+      <div class="intro">
+        <div class="intro-title">Timers — scheduled execution in canisters</div>
+        <div class="intro-text">
+          The <strong>ic_cdk_timers</strong> crate provides one-shot and recurring timers. Unlike <code>#[heartbeat]</code> (every consensus round), timers fire at specific intervals and can be cancelled. Timers live in heap memory — they <strong>must be re-registered in <code>#[post_upgrade]</code></strong> after a canister upgrade or they will be lost.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">scheduled tasks</span>
+          <span class="tag tag-b">one-shot + recurring</span>
+          <span class="tag tag-a">re-register on upgrade!</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Timer API</div>
+        <pre><span class="cm">// Cargo.toml: ic-cdk-timers = "0.9"</span>
+<span class="kw">use</span> ic_cdk_timers::{<span class="ty">TimerId</span>, set_timer, set_timer_interval, clear_timer};
+<span class="kw">use</span> std::time::<span class="ty">Duration</span>;
+
+<span class="cm">// One-shot — fires once after delay</span>
+<span class="kw">let</span> id: <span class="ty">TimerId</span> = set_timer(
+    <span class="ty">Duration</span>::from_secs(60),
+    || { ic_cdk::println!(<span class="st">"fired once"</span>); }
+);
+
+<span class="cm">// Recurring — fires every interval</span>
+<span class="kw">let</span> id: <span class="ty">TimerId</span> = set_timer_interval(
+    <span class="ty">Duration</span>::from_secs(3600),  <span class="cm">// every hour</span>
+    || { cleanup_expired_entries(); }
+);
+
+<span class="cm">// Cancel</span>
+clear_timer(id);</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Re-registering timers after upgrade</div>
+        <pre><span class="at">#[ic_cdk::init]</span>
+<span class="kw">fn</span> init() {
+    start_timers();  <span class="cm">// register on first install</span>
+}
+
+<span class="at">#[ic_cdk::post_upgrade]</span>
+<span class="kw">fn</span> post_upgrade() {
+    start_timers();  <span class="cm">// MUST re-register — heap was wiped</span>
+}
+
+<span class="kw">fn</span> start_timers() {
+    set_timer_interval(<span class="ty">Duration</span>::from_secs(3600), || {
+        cleanup_expired_entries();
+    });
+    set_timer_interval(<span class="ty">Duration</span>::from_secs(86400), || {
+        generate_daily_report();
+    });
+}
+
+<span class="cm">// Store timer ID if you need to cancel it later</span>
+<span class="kw">thread_local!</span> {
+    <span class="kw">static</span> CLEANUP_TIMER: <span class="ty">RefCell</span>&lt;<span class="ty">Option</span>&lt;<span class="ty">TimerId</span>&gt;&gt; = <span class="ty">RefCell</span>::new(<span class="ty">None</span>);
+}</pre>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         HTTP OUTCALLS
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-http">
+      <div class="intro">
+        <div class="intro-title">HTTP Outcalls — calling external APIs</div>
+        <div class="intro-text">
+          Canisters can make HTTPS requests to external APIs. Because multiple subnet nodes must agree, the call is made by all replicas — responses must be <strong>deterministic or transformed to be identical</strong>. A <strong>transform function</strong> strips non-deterministic parts (timestamps, request IDs, headers) before consensus. Outcalls cost cycles and are limited in response size.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">HTTPS only</span>
+          <span class="tag tag-b">transform for consensus</span>
+          <span class="tag tag-a">costs cycles</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Making an HTTP outcall</div>
+        <pre><span class="kw">use</span> ic_cdk::api::management_canister::http_request::{
+    <span class="ty">HttpMethod</span>, <span class="ty">HttpHeader</span>, <span class="ty">CanisterHttpRequestArgument</span>,
+    <span class="ty">TransformContext</span>, <span class="ty">HttpResponse</span>, <span class="ty">TransformArgs</span>, http_request,
+};
+
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">async fn</span> fetch_price(asset: <span class="ty">String</span>) -&gt; <span class="ty">String</span> {
+    <span class="kw">let</span> request = <span class="ty">CanisterHttpRequestArgument</span> {
+        url:               format!(<span class="st">"https://api.example.com/price/{asset}"</span>),
+        method:            <span class="ty">HttpMethod</span>::GET,
+        headers:           <span class="kw">vec!</span>[
+            <span class="ty">HttpHeader</span> { name: <span class="st">"Accept"</span>.into(), value: <span class="st">"application/json"</span>.into() },
+        ],
+        body:              <span class="ty">None</span>,
+        max_response_bytes: <span class="ty">Some</span>(2048),
+        transform:         <span class="ty">Some</span>(<span class="ty">TransformContext</span>::from_name(<span class="st">"transform"</span>.into(), <span class="kw">vec!</span>[])),
+    };
+
+    <span class="kw">let</span> cycles: <span class="ty">u128</span> = 230_949_972_000;  <span class="cm">// cost for 13-node subnet</span>
+    <span class="kw">let</span> (response,) = http_request(request, cycles).await
+        .expect(<span class="st">"HTTP request failed"</span>);
+
+    <span class="ty">String</span>::from_utf8(response.body).unwrap()
+}
+
+<span class="cm">// MUST be a #[query] — strips non-deterministic fields</span>
+<span class="at">#[ic_cdk::query]</span>
+<span class="kw">fn</span> transform(raw: <span class="ty">TransformArgs</span>) -&gt; <span class="ty">HttpResponse</span> {
+    <span class="ty">HttpResponse</span> {
+        status:  raw.response.status.clone(),
+        body:    raw.response.body.clone(),
+        headers: <span class="kw">vec!</span>[],  <span class="cm">// strip headers — they differ between replicas</span>
+    }
+}</pre>
+      </div>
+
+      <div class="edge">
+        <div class="edge-head">⚠ Outcall rules</div>
+        <ul class="elist">
+          <li><span class="sym">▸</span><span><strong>Transform is mandatory:</strong> if the API returns timestamps or request IDs in the body, the transform function must strip them. Replicas that disagree on the response will fail consensus.</span></li>
+          <li><span class="sym">▸</span><span><strong>HTTPS only:</strong> plain HTTP is not supported. The endpoint must have a valid TLS certificate.</span></li>
+          <li><span class="sym">▸</span><span><strong>Cycles cost varies by subnet size:</strong> 13-node subnets cost ~230B cycles per call. Always budget for outgoing requests.</span></li>
+          <li><span class="sym">▸</span><span><strong>Not available in local dfx by default:</strong> use the <code>--enable-canister-http</code> flag or test with pocket-ic.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         TESTING
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-testing">
+      <div class="intro">
+        <div class="intro-title">Testing — unit tests, pocket-ic, integration</div>
+        <div class="intro-text">
+          Canister testing has multiple levels. <strong>Unit tests</strong> test pure Rust logic without IC. <strong>pocket-ic</strong> provides a lightweight IC replica for integration tests — deploy canisters, make calls, advance time, test upgrades. <strong>dfx test</strong> runs against a full local replica. pocket-ic is the modern standard for canister integration testing.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">unit + integration</span>
+          <span class="tag tag-b">pocket-ic replica</span>
+          <span class="tag tag-g">test upgrades</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Unit testing pure logic</div>
+        <pre><span class="cm">// Normal Rust tests for pure functions (no ic_cdk calls)</span>
+<span class="at">#[cfg(test)]</span>
+<span class="kw">mod</span> tests {
+    <span class="kw">use super</span>::*;
+
+    <span class="at">#[test]</span>
+    <span class="kw">fn</span> test_validation() {
+        <span class="mac">assert!</span>(is_valid_username(<span class="st">"alice"</span>));
+        <span class="mac">assert!</span>(!is_valid_username(<span class="st">""</span>));
+        <span class="mac">assert_eq!</span>(compute_fee(100), 5);
+    }
+}
+
+<span class="cm">// Wrap ic_cdk calls for testability</span>
+<span class="kw">pub fn</span> create_user_inner(caller: <span class="ty">Principal</span>, name: <span class="ty">String</span>) -&gt; <span class="ty">Result</span>&lt;(), <span class="ty">String</span>&gt; {
+    <span class="cm">// pure logic — testable without IC</span>
+}
+
+<span class="at">#[ic_cdk::update]</span>
+<span class="kw">fn</span> create_user(name: <span class="ty">String</span>) -&gt; <span class="ty">Result</span>&lt;(), <span class="ty">String</span>&gt; {
+    create_user_inner(ic_cdk::caller(), name)  <span class="cm">// thin IC wrapper</span>
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">pocket-ic integration tests</div>
+        <pre><span class="cm">// [dev-dependencies]: pocket-ic = "4"</span>
+<span class="at">#[cfg(test)]</span>
+<span class="kw">mod</span> integration {
+    <span class="kw">use</span> pocket_ic::<span class="ty">PocketIc</span>;
+    <span class="kw">use</span> candid::{<span class="ty">Principal</span>, encode_one, decode_one};
+
+    <span class="at">#[test]</span>
+    <span class="kw">fn</span> test_full_canister() {
+        <span class="kw">let</span> pic = <span class="ty">PocketIc</span>::new();
+        <span class="kw">let</span> can_id = pic.create_canister();
+        pic.add_cycles(can_id, 2_000_000_000_000);
+
+        <span class="kw">let</span> wasm = include_bytes!(
+            <span class="st">"../target/wasm32-unknown-unknown/release/my_canister.wasm"</span>
+        );
+        pic.install_canister(can_id, wasm.to_vec(), <span class="kw">vec!</span>[], <span class="ty">None</span>);
+
+        <span class="cm">// Query call</span>
+        <span class="kw">let</span> res = pic.query_call(
+            can_id, <span class="ty">Principal</span>::anonymous(), <span class="st">"get_count"</span>,
+            encode_one(()).unwrap()
+        ).unwrap();
+        <span class="kw">let</span> count: <span class="ty">u64</span> = decode_one(&amp;res).unwrap();
+        <span class="mac">assert_eq!</span>(count, 0);
+
+        <span class="cm">// Update call</span>
+        pic.update_call(
+            can_id, <span class="ty">Principal</span>::anonymous(), <span class="st">"increment"</span>,
+            encode_one(()).unwrap()
+        ).unwrap();
+
+        <span class="cm">// Test upgrade preserves state</span>
+        pic.upgrade_canister(can_id, wasm.to_vec(), <span class="kw">vec!</span>[], <span class="ty">None</span>).unwrap();
+        <span class="cm">// verify count still = 1 after upgrade...</span>
+
+        <span class="cm">// Advance time (for timer tests)</span>
+        pic.advance_time(std::time::Duration::from_secs(3600));
+        pic.tick();  <span class="cm">// run one consensus round</span>
+    }
+}</pre>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         DFX COMMANDS
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-dfx">
+      <div class="intro">
+        <div class="intro-title">dfx — the Internet Computer SDK CLI</div>
+        <div class="intro-text">
+          dfx is the primary developer tool for ICP. It manages identities, local replicas, canister deployment, and canister calls. Think of it as cargo + docker + curl combined for ICP development.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">deploy &amp; manage</span>
+          <span class="tag tag-b">identity management</span>
+          <span class="tag tag-g">local + mainnet</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cmd-section">Project &amp; setup</div>
+        <table class="cmd-table">
+          <tr><td>dfx new my_project</td><td>Create new ICP project (prompts for template)</td></tr>
+          <tr><td>dfx new my_project --no-frontend</td><td>Backend-only project (no frontend assets)</td></tr>
+          <tr><td>dfx --version</td><td>Show dfx version</td></tr>
+          <tr><td>dfxvm install 0.24.0</td><td>Install specific dfx version via dfxvm</td></tr>
+          <tr><td>dfxvm default 0.24.0</td><td>Set default dfx version</td></tr>
+        </table>
+
+        <div class="cmd-section">Local replica</div>
+        <table class="cmd-table">
+          <tr><td>dfx start</td><td>Start local IC replica (blocking)</td></tr>
+          <tr><td>dfx start --background</td><td>Start in background</td></tr>
+          <tr><td>dfx start --clean</td><td>Start with fresh state (wipes all local canisters!)</td></tr>
+          <tr><td>dfx stop</td><td>Stop the local replica</td></tr>
+          <tr><td>dfx ping</td><td>Check if local replica is running</td></tr>
+          <tr><td>dfx ping ic</td><td>Ping the mainnet IC</td></tr>
+        </table>
+
+        <div class="cmd-section">Building</div>
+        <table class="cmd-table">
+          <tr><td>dfx build</td><td>Build all canisters in dfx.json</td></tr>
+          <tr><td>dfx build my_canister</td><td>Build a specific canister</td></tr>
+          <tr><td>dfx build --network ic</td><td>Build for mainnet</td></tr>
+          <tr><td>dfx generate</td><td>Generate Candid bindings and JS/TS type declarations</td></tr>
+        </table>
+
+        <div class="cmd-section">Deploying</div>
+        <table class="cmd-table">
+          <tr><td>dfx deploy</td><td>Build and deploy all canisters locally</td></tr>
+          <tr><td>dfx deploy my_canister</td><td>Deploy a specific canister</td></tr>
+          <tr><td>dfx deploy --network ic</td><td>Deploy to mainnet</td></tr>
+          <tr><td>dfx deploy --argument '(opt "init_arg")'</td><td>Deploy with Candid init argument</td></tr>
+          <tr><td>dfx deploy --mode reinstall</td><td>Reinstall (wipes state!) — not upgrade</td></tr>
+          <tr><td>dfx deploy --mode upgrade</td><td>Upgrade canister (preserves stable memory)</td></tr>
+          <tr><td>dfx deploy --with-cycles 2000000000000</td><td>Fund new canister with cycles on deploy</td></tr>
+        </table>
+
+        <div class="cmd-section">Canister management</div>
+        <table class="cmd-table">
+          <tr><td>dfx canister id my_canister</td><td>Print canister's Principal ID locally</td></tr>
+          <tr><td>dfx canister id my_canister --network ic</td><td>Mainnet canister ID</td></tr>
+          <tr><td>dfx canister status my_canister</td><td>Show status, memory usage, cycle balance</td></tr>
+          <tr><td>dfx canister start my_canister</td><td>Start a stopped canister</td></tr>
+          <tr><td>dfx canister stop my_canister</td><td>Stop a canister (no new calls accepted)</td></tr>
+          <tr><td>dfx canister delete my_canister</td><td>Delete canister and return cycles to wallet</td></tr>
+          <tr><td>dfx canister deposit-cycles 1T my_canister</td><td>Top up cycles</td></tr>
+          <tr><td>dfx canister update-settings my_canister --add-controller PRINCIPAL</td><td>Add controller</td></tr>
+          <tr><td>dfx canister info my_canister</td><td>Show controllers and module hash</td></tr>
+        </table>
+
+        <div class="cmd-section">Calling canisters</div>
+        <table class="cmd-table">
+          <tr><td>dfx canister call my_canister method_name</td><td>Call with no arguments</td></tr>
+          <tr><td>dfx canister call my_canister get_user '(42)'</td><td>Call with Candid argument</td></tr>
+          <tr><td>dfx canister call my_canister add_user '("Alice", 30)'</td><td>Multiple arguments</td></tr>
+          <tr><td>dfx canister call my_canister method --query</td><td>Force query call (faster, no consensus)</td></tr>
+          <tr><td>dfx canister call my_canister method --network ic</td><td>Call mainnet canister</td></tr>
+          <tr><td>dfx canister call my_canister method --output json</td><td>JSON output instead of Candid notation</td></tr>
+        </table>
+
+        <div class="cmd-section">Identity management</div>
+        <table class="cmd-table">
+          <tr><td>dfx identity list</td><td>List all local identities</td></tr>
+          <tr><td>dfx identity whoami</td><td>Show currently active identity name</td></tr>
+          <tr><td>dfx identity get-principal</td><td>Show current identity's Principal</td></tr>
+          <tr><td>dfx identity new alice</td><td>Create new identity (generates Ed25519 key pair)</td></tr>
+          <tr><td>dfx identity use alice</td><td>Switch to identity "alice"</td></tr>
+          <tr><td>dfx identity import alice alice.pem</td><td>Import identity from PEM file</td></tr>
+          <tr><td>dfx identity export alice</td><td>Export identity as PEM</td></tr>
+          <tr><td>dfx identity remove alice</td><td>Delete an identity</td></tr>
+        </table>
+
+        <div class="cmd-section">Cycles &amp; ICP</div>
+        <table class="cmd-table">
+          <tr><td>dfx ledger balance --network ic</td><td>Show ICP balance on mainnet</td></tr>
+          <tr><td>dfx cycles balance --network ic</td><td>Show cycles balance</td></tr>
+          <tr><td>dfx cycles convert --amount 1.0 --network ic</td><td>Convert 1.0 ICP to cycles</td></tr>
+          <tr><td>dfx cycles top-up my_canister 5T --network ic</td><td>Top up canister with 5 trillion cycles</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         CRATES
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-crates">
+      <div class="intro">
+        <div class="intro-title">Crates &amp; Cargo — the ICP Rust ecosystem</div>
+        <div class="intro-text">
+          ICP canister development uses a specific set of crates maintained by DFINITY and the community. The core crates are <code>ic-cdk</code>, <code>ic-stable-structures</code>, and <code>candid</code>. Most production canisters also use ICRC standard types for token compatibility.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">DFINITY-maintained</span>
+          <span class="tag tag-b">community standards</span>
+          <span class="tag tag-g">ICRC token standards</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head" style="margin-bottom:12px">Core canister crates</div>
+        <div class="crate-grid">
+          <div class="crate-card core"><div class="crate-name">ic-cdk</div><div class="crate-desc">The main Rust CDK. Provides #[update], #[query], #[init], caller(), trap(), async inter-canister calls, and the ic_cdk runtime APIs. Essential for every canister.</div><div class="crate-tags"><span class="ctag">must-have</span><span class="ctag">macros</span><span class="ctag">runtime</span></div></div>
+          <div class="crate-card core"><div class="crate-name">ic-stable-structures</div><div class="crate-desc">StableBTreeMap, StableVec, StableCell, MemoryManager. Store data directly in stable memory with no upgrade serialization needed. Essential for production canisters.</div><div class="crate-tags"><span class="ctag">must-have</span><span class="ctag">persistence</span><span class="ctag">stable memory</span></div></div>
+          <div class="crate-card core"><div class="crate-name">candid</div><div class="crate-desc">Candid encoding/decoding, CandidType derive macro, Principal type, Encode!/Decode! macros, export_service!(). Required for all public canister interfaces.</div><div class="crate-tags"><span class="ctag">must-have</span><span class="ctag">IDL</span><span class="ctag">serialization</span></div></div>
+          <div class="crate-card core"><div class="crate-name">ic-cdk-timers</div><div class="crate-desc">set_timer() and set_timer_interval() for scheduled task execution inside canisters. Clean alternative to #[heartbeat] for periodic tasks.</div><div class="crate-tags"><span class="ctag">timers</span><span class="ctag">scheduling</span></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head" style="margin-bottom:12px">Standards &amp; tokens</div>
+        <div class="crate-grid">
+          <div class="crate-card"><div class="crate-name">icrc-ledger-types</div><div class="crate-desc">Rust types for ICRC-1/2/3 token standards — Account, TransferArg, ApproveArg, Allowance. Use when integrating with ICP, ckBTC, ckETH, or any ICRC token.</div><div class="crate-tags"><span class="ctag">ICRC-1</span><span class="ctag">tokens</span><span class="ctag">DeFi</span></div></div>
+          <div class="crate-card"><div class="crate-name">ic-ledger-types</div><div class="crate-desc">Legacy ICP ledger types — AccountIdentifier, Tokens, TransferArgs. Use for direct ICP transfers via the NNS ledger canister.</div><div class="crate-tags"><span class="ctag">ICP</span><span class="ctag">ledger</span><span class="ctag">NNS</span></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head" style="margin-bottom:12px">Testing</div>
+        <div class="crate-grid">
+          <div class="crate-card"><div class="crate-name">pocket-ic</div><div class="crate-desc">Lightweight IC replica for integration tests. Deploy canisters, make calls, advance time, test upgrades — all in Rust tests without running dfx.</div><div class="crate-tags"><span class="ctag">testing</span><span class="ctag">integration</span><span class="ctag">upgrades</span></div></div>
+          <div class="crate-card"><div class="crate-name">ic-test-utilities</div><div class="crate-desc">Mocking utilities for canister unit tests — mock time, mock caller, mock IC environment without spinning up a replica.</div><div class="crate-tags"><span class="ctag">testing</span><span class="ctag">mocking</span></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Cargo.toml template</div>
+        <pre><span class="sh">[package]</span>
+<span class="shf">name</span>    = <span class="st">"my_canister"</span>
+<span class="shf">version</span> = <span class="st">"0.1.0"</span>
+<span class="shf">edition</span> = <span class="st">"2021"</span>
+
+<span class="sh">[lib]</span>
+<span class="shf">crate-type</span> = [<span class="st">"cdylib"</span>]   <span class="shcm">  # required for Wasm compilation</span>
+
+<span class="sh">[dependencies]</span>
+<span class="shf">ic-cdk</span>               = <span class="st">"0.17"</span>
+<span class="shf">ic-cdk-timers</span>        = <span class="st">"0.9"</span>
+<span class="shf">ic-stable-structures</span> = <span class="st">"0.6"</span>
+<span class="shf">candid</span>               = <span class="st">"0.10"</span>
+<span class="shf">serde</span>                = { <span class="shf">version</span> = <span class="st">"1"</span>, <span class="shf">features</span> = [<span class="st">"derive"</span>] }
+<span class="shf">icrc-ledger-types</span>    = <span class="st">"0.6"</span>   <span class="shcm">  # if integrating tokens</span>
+
+<span class="sh">[dev-dependencies]</span>
+<span class="shf">pocket-ic</span>            = <span class="st">"4"</span>
+
+<span class="sh">[profile.release]</span>
+<span class="shf">lto</span>        = <span class="st">true</span>           <span class="shcm">  # smaller Wasm</span>
+<span class="shf">opt-level</span>  = <span class="st">'z'</span>           <span class="shcm">  # optimize for size, not speed</span>
+<span class="shf">codegen-units</span> = <span class="num">1</span></pre>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════
+         PROJECT STRUCTURE
+    ════════════════════════════════════ -->
+    <div class="panel" id="p-project">
+      <div class="intro">
+        <div class="intro-title">Project Structure — dfx.json, src layout, and build</div>
+        <div class="intro-text">
+          An ICP project is managed by <code>dfx.json</code> which defines all canisters, their type, source paths, and candid files. The Rust canister compiles to <code>cdylib</code> Wasm. The <code>dfx.json</code> points to the Wasm output and the <code>.did</code> file.
+        </div>
+        <div class="tags">
+          <span class="tag tag-p">dfx.json config</span>
+          <span class="tag tag-b">Wasm compilation</span>
+          <span class="tag tag-g">multi-canister projects</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Standard project layout</div>
+        <div class="file-tree">
+<span class="ft-dir">my_project/</span>
+├── <span class="ft-dir">dfx.json</span>                 <span class="ft-note">← ICP project manifest</span>
+├── <span class="ft-dir">Cargo.toml</span>               <span class="ft-note">← workspace root</span>
+├── <span class="ft-dir">Cargo.lock</span>               <span class="ft-note">← commit this file!</span>
+├── <span class="ft-dir">rust-toolchain.toml</span>      <span class="ft-note">← pin Rust version</span>
+├── <span class="ft-dir">src/</span>
+│   └── <span class="ft-dir">my_canister/</span>
+│       ├── <span class="ft-dir">Cargo.toml</span>       <span class="ft-note">← crate-type = ["cdylib"]</span>
+│       ├── <span class="ft-dir">src/</span>
+│       │   ├── <span class="ft-dir">lib.rs</span>       <span class="ft-note">← entry points + candid export</span>
+│       │   ├── <span class="ft-dir">state.rs</span>     <span class="ft-note">← thread_local! + State structs</span>
+│       │   ├── <span class="ft-dir">storage.rs</span>   <span class="ft-note">← stable structures setup</span>
+│       │   ├── <span class="ft-dir">guards.rs</span>    <span class="ft-note">← access control functions</span>
+│       │   └── <span class="ft-dir">api/</span>
+│       │       ├── <span class="ft-dir">users.rs</span>
+│       │       └── <span class="ft-dir">admin.rs</span>
+│       └── <span class="ft-dir">my_canister.did</span>  <span class="ft-note">← generated by cargo test save_candid</span>
+├── <span class="ft-dir">tests/</span>
+│   └── <span class="ft-dir">integration.rs</span>       <span class="ft-note">← pocket-ic integration tests</span>
+└── <span class="ft-dir">.github/workflows/</span>
+    └── <span class="ft-dir">ci.yml</span>               <span class="ft-note">← build, test, deploy CI</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">dfx.json</div>
+        <pre>{
+  <span class="st">"version"</span>: 1,
+  <span class="st">"canisters"</span>: {
+    <span class="st">"my_canister"</span>: {
+      <span class="st">"type"</span>: <span class="st">"rust"</span>,
+      <span class="st">"package"</span>: <span class="st">"my_canister"</span>,
+      <span class="st">"candid"</span>: <span class="st">"src/my_canister/my_canister.did"</span>
+    },
+    <span class="st">"frontend"</span>: {
+      <span class="st">"type"</span>: <span class="st">"assets"</span>,
+      <span class="st">"source"</span>: [<span class="st">"dist/"</span>],
+      <span class="st">"dependencies"</span>: [<span class="st">"my_canister"</span>]
+    }
+  },
+  <span class="st">"networks"</span>: {
+    <span class="st">"local"</span>: {
+      <span class="st">"bind"</span>: <span class="st">"127.0.0.1:4943"</span>,
+      <span class="st">"type"</span>: <span class="st">"ephemeral"</span>
+    },
+    <span class="st">"ic"</span>: {
+      <span class="st">"providers"</span>: [<span class="st">"https://ic0.app"</span>],
+      <span class="st">"type"</span>: <span class="st">"persistent"</span>
+    }
+  }
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Build commands</div>
+        <pre><span class="cm"># Build Wasm for local development</span>
+dfx build
+
+<span class="cm"># Build Wasm directly with cargo (for CI)</span>
+cargo build --target wasm32-unknown-unknown --release -p my_canister
+
+<span class="cm"># Optimise Wasm size (recommended for mainnet)</span>
+ic-wasm target/wasm32-unknown-unknown/release/my_canister.wasm \
+    -o target/my_canister.wasm shrink
+
+<span class="cm"># Regenerate .did file</span>
+cargo test save_candid
+
+<span class="cm"># Check Wasm size</span>
+wc -c target/wasm32-unknown-unknown/release/my_canister.wasm</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-head">rust-toolchain.toml</div>
+        <pre><span class="sh">[toolchain]</span>
+<span class="shf">channel</span>    = <span class="st">"stable"</span>
+<span class="shf">targets</span>    = [<span class="st">"wasm32-unknown-unknown"</span>]
+<span class="shf">components</span> = [<span class="st">"rustfmt"</span>, <span class="st">"clippy"</span>]</pre>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
